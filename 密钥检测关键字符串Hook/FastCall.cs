@@ -50,6 +50,7 @@ namespace 密钥检测关键字符串Hook
         public static IntPtr InvokePtr { get; private set; }
         public static List<IntPtr> FastCallWrappers;
 
+        //InvokeCode 汇编指令
         private static Byte[] InvokeCode = new Byte[]
             {
             0x5A,                           // pop edx
