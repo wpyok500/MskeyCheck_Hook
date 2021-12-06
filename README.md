@@ -3,7 +3,9 @@
 
 
 HOOKAPI 用.net  Marshal.Copy写法
+
 HOOK_API 用.net  Marshal.ReadByte  Marshal.WriteByte 写法
+
 HOOKAPI 用.net unsafe 写法
 
 三种写法任意用一种即可 
