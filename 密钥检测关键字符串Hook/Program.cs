@@ -1,135 +1,363 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+using System.Collections.Concurrent;
+using System.ComponentModel;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Threading.Tasks;
+using System.Threading;
+using EasyHook;
 
 namespace 密钥检测关键字符串Hook
 {
-    class Program
+    internal class Program
     {
+        #region ===== Native Delegates (严格匹配原生函数) =====
         [UnmanagedFunctionPointer(CallingConvention.StdCall, CharSet = CharSet.Unicode)]
-        private delegate int GetPID2Delegate(IntPtr FileTime, IntPtr MPID, int LangId, int dwBuildNumber, int unk, IntPtr DPID2);
+        private delegate int GetPID2Delegate(
+            IntPtr fileTimePtr,
+            IntPtr mpidPtr,
+            int langId,
+            int dwBuildNumber,
+            int unkParam,
+            IntPtr dpid2Ptr);
 
-        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-        private delegate int WrapperGetPID2Delegate(IntPtr functionPtr, IntPtr FileTime, IntPtr MPID, int LangId, int dwBuildNumber, int unk, IntPtr DPID2);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall, CharSet = CharSet.Unicode)]
+        private delegate int FnPidGenX(
+            string productKey,
+            string pkeyPath,
+            string mpcid,
+            IntPtr unknown,
+            IntPtr pid2,
+            IntPtr pid3,
+            IntPtr pid4);
+
+        [UnmanagedFunctionPointer(CallingConvention.StdCall, CharSet = CharSet.Unicode)]
+        private delegate int DelegateGetPKeyData(
+            string productKey,
+            string pkeyConfigPath,
+            string mpcid,
+            string algo,
+            IntPtr oemId,
+            IntPtr otherId,
+            out string iid,
+            out string description,
+            out string channel,
+            out string subType,
+            StringBuilder pid);
+        #endregion
+
+        #region ===== Win32 API (带错误处理) =====
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern IntPtr LoadLibrary(string lpFileName);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool FreeLibrary(IntPtr hModule);
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Ansi)]
+        private static extern IntPtr GetProcAddress(IntPtr hModule, string procName);
 
         [DllImport("kernel32.dll")]
-        internal static extern bool RtlZeroMemory(IntPtr destination, int length);
+        private static extern void RtlZeroMemory(IntPtr dst, int size);
+        #endregion
 
-        // Token: 0x06000094 RID: 148
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        internal static extern bool SetDllDirectory(string lpPathName);
+        #region ===== Globals (线程安全/只读) =====
+        private static LocalHook _hook;
+        private static GetPID2Delegate _originalGetPID2;
 
-        // Token: 0x06000095 RID: 149
-        [DllImport("kernel32", SetLastError = true)]
-        internal static extern IntPtr LoadLibrary(string lpFileName);
+        // 线程安全日志队列 + 退出信号
+        private static readonly ConcurrentQueue<string> _logQueue = new ConcurrentQueue<string>();
+        private static readonly ManualResetEvent _exitEvent = new ManualResetEvent(false);
+        private static Thread _logThread; // 日志线程引用，便于等待退出
 
-        // Token: 0x06000096 RID: 150
-        [DllImport("Kernel32.dll")]
-        internal static extern IntPtr GetProcAddress(IntPtr hModule, string lpProcName);
+        // ⚠️ 必须与你的 x64 ProductKeyUtilities.dll 匹配
+        private const long GET_PID2_OFFSET_X64 = 50073;
+        private const string PRODUCT_KEY = "VK7JG-NPHTM-C97JM-9MPGT-3V66T";
+        private const string CONFIG_FILE = "pkconfig_winNext.xrm-ms";
+        #endregion
 
-        // Token: 0x06000097 RID: 151
-        [DllImport("kernel32.dll")]
-        internal static extern bool FreeLibrary(IntPtr hModule);
-        static string string_0 = Environment.CurrentDirectory + "\\";
-        [UnmanagedFunctionPointer(CallingConvention.StdCall, CharSet = CharSet.Unicode)]
-        private delegate int fnPidGenX(string ProuctKey, string PkeyPath, string MPCID, IntPtr UnknownUsage, IntPtr PID2, IntPtr PID3, IntPtr PID4);
-
-        [UnmanagedFunctionPointer(CallingConvention.StdCall, CharSet = CharSet.Unicode)]
-        private delegate int DelegateGetPKeyData(string ProductKey, string PkeyConfigPath, string MPCID, string pwszPKeyAlgorithm, IntPtr OemId, IntPtr OtherId, out string IID, out string Description, out string channel, out string subType, StringBuilder PID);
-
-        private static IntPtr hModule_base = IntPtr.Zero;
-        static void Main(string[] args)
+        static void Main()
         {
+            Console.OutputEncoding = Encoding.UTF8;
+            Console.WriteLine("=== KeyHook Optimized (x64 / EasyHook) ===\n");
 
-            string ProductKeys = "VK7JG-NPHTM-C97JM-9MPGT-3V66T";
-            string pkeyconfigxml = System.Environment.CurrentDirectory + "\\pkconfig_winNext.xrm-ms";
-            IntPtr intPtr = Marshal.AllocHGlobal(100);
-            RtlZeroMemory(intPtr, 50);
-            Marshal.WriteByte(intPtr, 0, 50);
-            IntPtr intPtr2 = Marshal.AllocHGlobal(164);
-            RtlZeroMemory(intPtr2, 164);
-            Marshal.WriteByte(intPtr2, 0, 164);
-            IntPtr intPtr3 = Marshal.AllocHGlobal(1272);
-            RtlZeroMemory(intPtr3, 1272);
-            Marshal.WriteByte(intPtr3, 0, 248);
-            Marshal.WriteByte(intPtr3, 1, 4);
-            IntPtr hModule = LoadLibrary("ProductKeyUtilities.dll");
-            hModule_base = hModule;
-
-            //获取安装ID
-            IntPtr procAddress1 = GetProcAddress(hModule, "GetPKeyData");
-            DelegateGetPKeyData delegateForFunctionPointer1 = Marshal.GetDelegateForFunctionPointer<DelegateGetPKeyData>(procAddress1);
-            string IID; string Description, channel, subType; StringBuilder PID = null;
-            int num1 = delegateForFunctionPointer1(ProductKeys, pkeyconfigxml, null, null, IntPtr.Zero, IntPtr.Zero, out IID, out Description, out channel, out subType, PID);
-            Console.WriteLine(IID);
-
-
-            IntPtr procAddress = GetProcAddress(hModule, "PidGenX");
-            fnPidGenX delegateForFunctionPointer = Marshal.GetDelegateForFunctionPointer<fnPidGenX>(procAddress);
-
-            //四处HookAPI
-
-            //如果要hook该函数  
-            IntPtr HookPtr = FastCall.WrapStdCallInFastCall(Marshal.GetFunctionPointerForDelegate(new GetPID2Delegate(MyGetPID2)));
-            Int32 a = hModule.ToInt32();
-            Int32 b = hModule.ToInt32() + 50073;
-            HookAPI HookFunc = new HookAPI(new IntPtr(hModule.ToInt32() + 50073), HookPtr);
-            HookAPI.Install();
-
-            //另外一种hook 写法 HookAPI与Hook类
-            //Hook hook = new Hook(new IntPtr(hModule.ToInt32() + 50073), HookPtr);
-            //Hook.Install();
-
-            //ProductKeyUtilities.dll偏移地址55041 和 50252 都是； pidgenx.dll的偏移x86的偏移是5088E， x64的是1E938
-            int num = delegateForFunctionPointer(ProductKeys, pkeyconfigxml, "55041", (IntPtr)0, intPtr, intPtr2, intPtr3);
-            Console.WriteLine(num.ToString());
-            HookAPI.Unistall();
-
-            //HookAPI.Unistall();
-
-            Console.ReadLine();
-        }
-        private static int MyGetPID2(IntPtr intptr_1, IntPtr intptr_2, int int_0, int int_1, int int_2, IntPtr intptr_3)
-        {
-            //两处HookAPI
-            // Hook.Unistall();
-            HookAPI.Unistall();
-
-            int num = 0;
-            checked
+            // 环境校验：仅 x64
+            if (IntPtr.Size != 8)
             {
-                if (hModule_base != IntPtr.Zero)
+                Console.WriteLine("❌ 仅支持 x64 进程，请修改项目编译配置");
+                return;
+            }
+
+            // 资源声明（统一释放）
+            IntPtr hDll = IntPtr.Zero;
+            IntPtr p1 = IntPtr.Zero, p2 = IntPtr.Zero, p3 = IntPtr.Zero;
+
+            try
+            {
+                // 配置文件校验
+                string configPath = Path.Combine(Environment.CurrentDirectory, CONFIG_FILE);
+                if (!File.Exists(configPath))
+                    throw new FileNotFoundException("配置文件不存在", configPath);
+
+                // 加载核心 DLL
+                hDll = LoadLibrary("ProductKeyUtilities.dll");
+                if (hDll == IntPtr.Zero)
+                    throw new Win32Exception(Marshal.GetLastWin32Error(), "ProductKeyUtilities.dll 加载失败");
+
+                // 安装 Hook
+                InstallHook(hDll);
+
+                // 分配非托管缓冲区
+                (p1, p2, p3) = AllocateBuffers();
+
+                // 启动异步日志线程
+                StartLogWorker();
+
+                // 解析产品密钥信息
+                ParseProductKeyInfo(hDll, PRODUCT_KEY, configPath);
+
+                // 调用 PidGenX 触发 Hook
+                CallPidGenX(hDll, PRODUCT_KEY, configPath, p1, p2, p3);
+
+                Console.WriteLine("\n✔ 执行完成，按回车退出...");
+                Console.ReadLine();
+            }
+            catch (Exception ex)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"❌ 执行异常：{ex}");
+                Console.ResetColor();
+            }
+            finally
+            {
+                // 退出信号 + 等待日志线程输出剩余内容
+                _exitEvent.Set();
+                if (_logThread != null && _logThread.IsAlive)
+                    _logThread.Join(1000); // 最多等待 1 秒
+
+                // 资源清理
+                Cleanup(hDll, p1, p2, p3);
+            }
+        }
+
+        #region ===== Hook 核心逻辑 =====
+        /// <summary>
+        /// 安装 EasyHook（核心步骤）
+        /// </summary>
+        private static void InstallHook(IntPtr hModule)
+        {
+            // 计算 GetPID2 函数实际地址（基址 + RVA 偏移）
+            IntPtr targetAddr = new IntPtr(hModule.ToInt64() + GET_PID2_OFFSET_X64);
+            Console.WriteLine($"🪝 准备 Hook GetPID2 @ 0x{targetAddr.ToInt64():X8}");
+
+            // 创建 Hook（EasyHook 标准写法）
+            _hook = LocalHook.Create(
+                targetAddr,
+                new GetPID2Delegate(Hook_GetPID2_Callback),
+                null);
+
+            // 启用 Hook：拦截所有线程
+            _hook.ThreadACL.SetExclusiveACL(Array.Empty<int>());
+
+            // 绑定原函数委托（绕过 Hook 调用原生函数）
+            _originalGetPID2 = Marshal.GetDelegateForFunctionPointer<GetPID2Delegate>(targetAddr);
+
+            Console.WriteLine($"✅ Hook 安装成功");
+        }
+
+        /// <summary>
+        /// GetPID2 Hook 回调（异常隔离，绝不外泄）
+        /// </summary>
+        private static int Hook_GetPID2_Callback(
+            IntPtr fileTimePtr,
+            IntPtr mpidPtr,
+            int langId,
+            int dwBuildNumber,
+            int unkParam,
+            IntPtr dpid2Ptr)
+        {
+            try
+            {
+                // 记录拦截到的参数
+                _logQueue.Enqueue($"[HOOK] GetPID2 被调用：LangId={langId}, BuildNumber={dwBuildNumber}, UnkParam={unkParam}");
+
+                // 调用原生函数（核心：必须放行，否则业务中断）
+                int retCode = _originalGetPID2(fileTimePtr, mpidPtr, langId, dwBuildNumber, unkParam, dpid2Ptr);
+
+                // 解析返回结果（仅成功时解析）
+                if (retCode == 0 && fileTimePtr != IntPtr.Zero)
+                    ParseFileTimeStruct(fileTimePtr);
+
+                return retCode;
+            }
+            catch (Exception ex)
+            {
+                // 异常隔离：Hook 回调绝对不能抛出异常
+                _logQueue.Enqueue($"[HOOK] 回调异常：{ex.Message}");
+                // 兜底调用原函数，保证业务不中断
+                return _originalGetPID2(fileTimePtr, mpidPtr, langId, dwBuildNumber, unkParam, dpid2Ptr);
+            }
+        }
+        #endregion
+
+        #region ===== 工具方法（模块化） =====
+        /// <summary>
+        /// 解析 FileTime 结构体（修复内存偏移）
+        /// </summary>
+        private static void ParseFileTimeStruct(IntPtr ptr)
+        {
+            try
+            {
+                // 严格匹配结构体内存布局：
+                // 前 4 字节 = index (int)，接下来 8 字节 = ActConfigKey 指针 (IntPtr)
+                int index = Marshal.ReadInt32(ptr); // 读取 index
+                IntPtr keyPtr = Marshal.ReadIntPtr(ptr, 4); // 从第 4 字节读取 ActConfigKey 指针
+                string actConfigKey = Marshal.PtrToStringUni(keyPtr); // 转为字符串
+
+                _logQueue.Enqueue($"[HOOK] FileTime 解析：Index={index}, ActConfigKey={actConfigKey ?? "空"}");
+            }
+            catch (Exception ex)
+            {
+                _logQueue.Enqueue($"[HOOK] FileTime 解析失败：{ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// 分配非托管缓冲区（初始化+防脏数据）
+        /// </summary>
+        private static (IntPtr, IntPtr, IntPtr) AllocateBuffers()
+        {
+            IntPtr buf1 = Marshal.AllocHGlobal(100);
+            IntPtr buf2 = Marshal.AllocHGlobal(164);
+            IntPtr buf3 = Marshal.AllocHGlobal(1272);
+
+            // 内存置零，避免脏数据
+            RtlZeroMemory(buf1, 100);
+            RtlZeroMemory(buf2, 164);
+            RtlZeroMemory(buf3, 1272);
+
+            // 设置 DLL 要求的标志位
+            Marshal.WriteByte(buf1, 0, 50);
+            Marshal.WriteByte(buf2, 0, 164);
+            Marshal.WriteByte(buf3, 0, 248);
+            Marshal.WriteByte(buf3, 1, 4);
+
+            Console.WriteLine($"✅ 非托管缓冲区分配完成");
+            return (buf1, buf2, buf3);
+        }
+
+        /// <summary>
+        /// 解析产品密钥信息（扩展功能）
+        /// </summary>
+        private static void ParseProductKeyInfo(IntPtr hDll, string key, string configPath)
+        {
+            IntPtr funcPtr = GetProcAddress(hDll, "GetPKeyData");
+            if (funcPtr == IntPtr.Zero)
+            {
+                _logQueue.Enqueue("[INFO] 未找到 GetPKeyData 函数，跳过密钥解析");
+                return;
+            }
+
+            try
+            {
+                var getPKeyData = Marshal.GetDelegateForFunctionPointer<DelegateGetPKeyData>(funcPtr);
+                StringBuilder pidSb = new StringBuilder(256);
+
+                int ret = getPKeyData(
+                    key, configPath, null, null,
+                    IntPtr.Zero, IntPtr.Zero,
+                    out string iid,
+                    out string desc,
+                    out string channel,
+                    out string subType,
+                    pidSb);
+
+                _logQueue.Enqueue($"[INFO] 密钥解析：返回值={ret}, IID={iid ?? "空"}, 描述={desc ?? "空"}, 渠道={channel ?? "空"}, PID={pidSb}");
+            }
+            catch (Exception ex)
+            {
+                _logQueue.Enqueue($"[WARN] 密钥解析失败：{ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// 调用 PidGenX（触发 Hook）
+        /// </summary>
+        private static void CallPidGenX(IntPtr hDll, string key, string configPath, IntPtr p1, IntPtr p2, IntPtr p3)
+        {
+            IntPtr funcPtr = GetProcAddress(hDll, "PidGenX");
+            if (funcPtr == IntPtr.Zero)
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "未找到 PidGenX 函数");
+
+            var pidGenX = Marshal.GetDelegateForFunctionPointer<FnPidGenX>(funcPtr);
+            _logQueue.Enqueue("[INFO] 调用 PidGenX 函数（将触发 Hook）");
+
+            int ret = pidGenX(key, configPath, "55041", IntPtr.Zero, p1, p2, p3);
+            _logQueue.Enqueue($"[INFO] PidGenX 调用完成，返回值={ret} (0=成功)");
+        }
+
+        /// <summary>
+        /// 启动异步日志线程（线程安全输出）
+        /// </summary>
+        private static void StartLogWorker()
+        {
+            _logThread = new Thread(() =>
+            {
+                while (!_exitEvent.WaitOne(50)) // 50ms 轮询一次
                 {
-                    WrapperGetPID2Delegate wrapperGetPID2Delegate = FastCall.StdcallToFastcall<WrapperGetPID2Delegate>(FastCall.InvokePtr);
-                    num = wrapperGetPID2Delegate(new IntPtr(hModule_base.ToInt32() + 50073), intptr_1, intptr_2, int_0, int_1, int_2, intptr_3);
-                    Console.WriteLine("num:" + num);
-                    if (num == 0)
+                    while (_logQueue.TryDequeue(out string log))
                     {
-                        //Marshal.PtrToStringUni(intptr_3);
-                        object obj2 = Marshal.PtrToStructure(intptr_1, typeof(FileTime));
-                        FileTime fileTime = (obj2 != null) ? ((FileTime)obj2) : default(FileTime);
-                        Console.WriteLine(fileTime.ActConfigKey);
+                        Console.WriteLine(log);
                     }
                 }
 
-                HookAPI.Install();
-                // Hook.Install();
-                return num;
-            }
+                // 退出前输出剩余日志
+                while (_logQueue.TryDequeue(out string remainingLog))
+                {
+                    Console.WriteLine(remainingLog);
+                }
+            })
+            {
+                IsBackground = true,
+                Name = "LogWorker"
+            };
+
+            _logThread.Start();
+            Console.WriteLine($"✅ 日志线程启动成功");
         }
-    }
 
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto, Pack = 4)]
-    public struct FileTime
-    {
-        // Token: 0x0400006D RID: 109
-        public int index;
+        /// <summary>
+        /// 资源清理（统一释放，避免泄漏）
+        /// </summary>
+        private static void Cleanup(IntPtr hDll, params IntPtr[] buffers)
+        {
+            Console.WriteLine("\n🧹 开始清理资源...");
 
-        // Token: 0x0400006E RID: 110
-        [MarshalAs(UnmanagedType.LPWStr)]
-        public string ActConfigKey;
+            // 释放 Hook
+            if (_hook != null)
+            {
+                _hook.Dispose();
+                _originalGetPID2 = null;
+                Console.WriteLine($"✅ Hook 已释放");
+            }
+
+            // 释放非托管缓冲区
+            foreach (var buf in buffers)
+            {
+                if (buf != IntPtr.Zero)
+                {
+                    Marshal.FreeHGlobal(buf);
+                }
+            }
+            Console.WriteLine($"✅ 非托管缓冲区已释放");
+
+            // 释放 DLL
+            if (hDll != IntPtr.Zero && FreeLibrary(hDll))
+            {
+                Console.WriteLine($"✅ ProductKeyUtilities.dll 已释放");
+            }
+
+            Console.WriteLine($"✅ 所有资源清理完成");
+        }
+        #endregion
     }
 }

@@ -1,119 +1,278 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections.Concurrent;
+using System.ComponentModel;
+using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading;
+using EasyHook;
 
-namespace 密钥检测关键字符串Hook
+namespace KeyHook_Optimized
 {
-    public unsafe class HookAPI
+    internal class Program
     {
-        const string KERNEL32 = "kernel32.dll";
+        #region ===== Native Delegates =====
 
-        [DllImport(KERNEL32)]
-        static extern bool VirtualProtect(IntPtr lpAddress, UIntPtr dwSize, VirtualProtectionType flNewProtect, out VirtualProtectionType lpflOldProtect);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall, CharSet = CharSet.Unicode)]
+        private delegate int GetPID2Delegate(
+            IntPtr fileTimePtr,
+            IntPtr mpidPtr,
+            int langId,
+            int dwBuildNumber,
+            int unkParam,
+            IntPtr dpid2Ptr);
 
-        private enum VirtualProtectionType : uint
+        [UnmanagedFunctionPointer(CallingConvention.StdCall, CharSet = CharSet.Unicode)]
+        private delegate int FnPidGenX(
+            string productKey,
+            string pkeyPath,
+            string mpcid,
+            IntPtr unknown,
+            IntPtr pid2,
+            IntPtr pid3,
+            IntPtr pid4);
+
+        [UnmanagedFunctionPointer(CallingConvention.StdCall, CharSet = CharSet.Unicode)]
+        private delegate int DelegateGetPKeyData(
+            string productKey,
+            string pkeyConfigPath,
+            string mpcid,
+            string algo,
+            IntPtr oemId,
+            IntPtr otherId,
+            out string iid,
+            out string description,
+            out string channel,
+            out string subType,
+            StringBuilder pid);
+
+        #endregion
+
+        #region ===== Win32 =====
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern IntPtr LoadLibrary(string lpFileName);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool FreeLibrary(IntPtr hModule);
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Ansi)]
+        private static extern IntPtr GetProcAddress(IntPtr hModule, string procName);
+
+        [DllImport("kernel32.dll")]
+        private static extern void RtlZeroMemory(IntPtr dst, int size);
+
+        #endregion
+
+        #region ===== Globals =====
+
+        private static LocalHook _hook;
+        private static GetPID2Delegate _originalGetPID2;
+
+        private static readonly ConcurrentQueue<string> _logQueue = new ConcurrentQueue<string>();
+        private static readonly ManualResetEvent _exitEvent = new ManualResetEvent(false);
+
+        private const long GET_PID2_OFFSET_X64 = 50073; // ⚠️ 与 DLL 版本强相关
+        private const string PRODUCT_KEY = "VK7JG-NPHTM-C97JM-9MPGT-3V66T";
+        private const string CONFIG_FILE = "pkconfig_winNext.xrm-ms";
+
+        #endregion
+
+        static void Main()
         {
-            Execute = 0x10,
-            ExecuteRead = 0x20,
-            ExecuteReadWrite = 0x40,
-            ExecuteWriteCopy = 0x80,
-            NoAccess = 0x01,
-            Readonly = 0x02,
-            ReadWrite = 0x04,
-            WriteCopy = 0x08,
-            GuardModifierflag = 0x100,
-            NoCacheModifierflag = 0x200,
-            WriteCombineModifierflag = 0x400
+            Console.OutputEncoding = Encoding.UTF8;
+            Console.WriteLine("=== KeyHook Optimized (x64 / EasyHook) ===\n");
+
+            if (IntPtr.Size != 8)
+            {
+                Console.WriteLine("❌ 仅支持 x64 进程");
+                return;
+            }
+
+            IntPtr hDll = IntPtr.Zero;
+            IntPtr p1 = IntPtr.Zero, p2 = IntPtr.Zero, p3 = IntPtr.Zero;
+
+            try
+            {
+                string configPath = Path.Combine(Environment.CurrentDirectory, CONFIG_FILE);
+                if (!File.Exists(configPath))
+                    throw new FileNotFoundException("配置文件不存在", configPath);
+
+                hDll = LoadLibrary("ProductKeyUtilities.dll");
+                if (hDll == IntPtr.Zero)
+                    throw new Win32Exception(Marshal.GetLastWin32Error(), "DLL 加载失败");
+
+                InstallHook(hDll);
+
+                (p1, p2, p3) = AllocateBuffers();
+
+                StartLogWorker();
+
+                ParseProductKeyInfo(hDll, PRODUCT_KEY, configPath);
+
+                CallPidGenX(hDll, PRODUCT_KEY, configPath, p1, p2, p3);
+
+                Console.WriteLine("\n✔ 执行完成，回车退出");
+                Console.ReadLine();
+            }
+            catch (Exception ex)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine(ex);
+                Console.ResetColor();
+            }
+            finally
+            {
+                _exitEvent.Set();
+                Cleanup(hDll, p1, p2, p3);
+            }
         }
 
-        private static byte[] m_OriginalBytes;
+        #region ===== Hook Install =====
 
-        public static IntPtr TargetAddress { get; set; }
-        public static IntPtr HookAddress { get; set; }
-
-        public HookAPI(IntPtr target, IntPtr hook)
+        private static void InstallHook(IntPtr hModule)
         {
-            if (Environment.Is64BitProcess)
-                throw new NotSupportedException("X64 not supported, TODO");
+            IntPtr target = new IntPtr(hModule.ToInt64() + GET_PID2_OFFSET_X64);
 
-            TargetAddress = target;
-            HookAddress = hook;
+            _hook = LocalHook.Create(
+                target,
+                new GetPID2Delegate(Hook_GetPID2),
+                out _originalGetPID2);
 
-            m_OriginalBytes = new byte[5];
-            ProtectionSafeMemoryCopy(m_OriginalBytes, target);
+            _hook.ThreadACL.SetExclusiveACL(Array.Empty<int>());
+
+            Console.WriteLine($"🪝 Hook Installed @ 0x{target.ToInt64():X}");
         }
 
+        #endregion
 
+        #region ===== Hook Callback =====
 
-        public static void Install()
+        private static int Hook_GetPID2(
+            IntPtr fileTimePtr,
+            IntPtr mpidPtr,
+            int langId,
+            int dwBuildNumber,
+            int unkParam,
+            IntPtr dpid2Ptr)
         {
-            byte[] jmp = CreateJMP(TargetAddress, HookAddress);
-            ProtectionSafeMemoryCopy(TargetAddress, jmp);
+            try
+            {
+                _logQueue.Enqueue(
+                    $"[GetPID2] Lang={langId}, Build={dwBuildNumber}, Unk={unkParam}");
+
+                int ret = _originalGetPID2(
+                    fileTimePtr, mpidPtr, langId, dwBuildNumber, unkParam, dpid2Ptr);
+
+                if (ret == 0 && fileTimePtr != IntPtr.Zero)
+                    ParseFileTime(fileTimePtr);
+
+                return ret;
+            }
+            catch
+            {
+                // Hook 回调绝不允许异常外泄
+                return _originalGetPID2(
+                    fileTimePtr, mpidPtr, langId, dwBuildNumber, unkParam, dpid2Ptr);
+            }
         }
 
-        public static void Unistall()
+        #endregion
+
+        #region ===== Helpers =====
+
+        private static void ParseFileTime(IntPtr ptr)
         {
-            ProtectionSafeMemoryCopy(TargetAddress, m_OriginalBytes);
+            try
+            {
+                int index = Marshal.ReadInt32(ptr);
+                IntPtr strPtr = Marshal.ReadIntPtr(ptr, IntPtr.Size);
+                string key = Marshal.PtrToStringUni(strPtr);
+
+                _logQueue.Enqueue($"    Index={index}, ActConfigKey={key}");
+            }
+            catch
+            {
+                _logQueue.Enqueue("    FileTime parse failed");
+            }
         }
 
-        static void ProtectionSafeMemoryCopy(byte[] dest, IntPtr source)
+        private static (IntPtr, IntPtr, IntPtr) AllocateBuffers()
         {
-            // UIntPtr = size_t
-            var bufferSize = new UIntPtr((uint)dest.Length);
-            VirtualProtectionType oldProtection, temp;
+            IntPtr a = Marshal.AllocHGlobal(100);
+            IntPtr b = Marshal.AllocHGlobal(164);
+            IntPtr c = Marshal.AllocHGlobal(1272);
 
-            // unprotect memory to copy buffer
-            if (!VirtualProtect(BytesToIntptr(dest), bufferSize, VirtualProtectionType.ExecuteReadWrite, out oldProtection))
-                throw new Exception("Failed to unprotect memory.");
+            RtlZeroMemory(a, 100);
+            RtlZeroMemory(b, 164);
+            RtlZeroMemory(c, 1272);
 
-            // copy buffer to address
-            Marshal.Copy(source, dest, 0, dest.Length);
+            Marshal.WriteByte(a, 0, 50);
+            Marshal.WriteByte(b, 0, 164);
+            Marshal.WriteByte(c, 0, 248);
+            Marshal.WriteByte(c, 1, 4);
 
-            // protect back
-            if (!VirtualProtect(BytesToIntptr(dest), bufferSize, oldProtection, out temp))
-                throw new Exception("Failed to protect memory.");
-        }
-        static void ProtectionSafeMemoryCopy(IntPtr dest, byte[] source)
-        {
-            // UIntPtr = size_t
-            var bufferSize = new UIntPtr((uint)source.Length);
-            VirtualProtectionType oldProtection, temp;
-
-            // unprotect memory to copy buffer
-            if (!VirtualProtect(dest, bufferSize, VirtualProtectionType.ExecuteReadWrite, out oldProtection))
-                throw new Exception("Failed to unprotect memory.");
-
-            // copy buffer to address
-            Marshal.Copy(source, 0, dest, source.Length);
-
-            // protect back
-            if (!VirtualProtect(dest, bufferSize, oldProtection, out temp))
-                throw new Exception("Failed to protect memory.");
+            return (a, b, c);
         }
 
-        static IntPtr BytesToIntptr(byte[] dest)
+        private static void ParseProductKeyInfo(IntPtr hDll, string key, string config)
         {
-            IntPtr ptr = Marshal.AllocHGlobal(Marshal.SizeOf(dest.Length));
-            Marshal.Copy(dest, 0, ptr, dest.Length);
-            return ptr;
+            IntPtr fn = GetProcAddress(hDll, "GetPKeyData");
+            if (fn == IntPtr.Zero)
+                return;
+
+            var getPKeyData = Marshal.GetDelegateForFunctionPointer<DelegateGetPKeyData>(fn);
+
+            getPKeyData(
+                key, config, null, null,
+                IntPtr.Zero, IntPtr.Zero,
+                out string iid,
+                out string desc,
+                out string channel,
+                out string subType,
+                new StringBuilder(256));
+
+            _logQueue.Enqueue($"[PKey] {desc} / {channel} / {subType}");
         }
 
-        static byte[] CreateJMP(IntPtr from, IntPtr to)
+        private static void CallPidGenX(
+            IntPtr hDll, string key, string config,
+            IntPtr p1, IntPtr p2, IntPtr p3)
         {
-            return CreateJMP(new IntPtr(to.ToInt32() - from.ToInt32() - 5));
+            IntPtr fn = GetProcAddress(hDll, "PidGenX");
+            if (fn == IntPtr.Zero)
+                throw new Exception("PidGenX not found");
+
+            var pidGenX = Marshal.GetDelegateForFunctionPointer<FnPidGenX>(fn);
+
+            pidGenX(key, config, "55041", IntPtr.Zero, p1, p2, p3);
         }
 
-        static byte[] CreateJMP(IntPtr relAddr)
+        private static void StartLogWorker()
         {
-            var list = new List<byte>();
-            // get bytes of function address
-            var funcAddr32 = BitConverter.GetBytes(relAddr.ToInt32());
-
-            // jmp [relative addr] 
-            list.Add(0xE9); // jmp
-            list.AddRange(funcAddr32); // func addr
-
-            return list.ToArray();
+            new Thread(() =>
+            {
+                while (!_exitEvent.WaitOne(50))
+                {
+                    while (_logQueue.TryDequeue(out var msg))
+                        Console.WriteLine(msg);
+                }
+            })
+            { IsBackground = true }.Start();
         }
+
+        private static void Cleanup(IntPtr hDll, params IntPtr[] buffers)
+        {
+            _hook?.Dispose();
+
+            foreach (var p in buffers)
+                if (p != IntPtr.Zero)
+                    Marshal.FreeHGlobal(p);
+
+            if (hDll != IntPtr.Zero)
+                FreeLibrary(hDll);
+        }
+
+        #endregion
     }
 }
