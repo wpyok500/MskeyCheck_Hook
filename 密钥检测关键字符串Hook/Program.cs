@@ -58,6 +58,10 @@ namespace 密钥检测关键字符串Hook
 
         [DllImport("kernel32.dll")]
         private static extern void RtlZeroMemory(IntPtr dst, int size);
+
+        // 新增：设置DLL搜索路径（x86下路径问题更常见）
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern bool SetDllDirectory(string lpPathName);
         #endregion
 
         #region ===== Globals (线程安全/只读) =====
@@ -69,8 +73,9 @@ namespace 密钥检测关键字符串Hook
         private static readonly ManualResetEvent _exitEvent = new ManualResetEvent(false);
         private static Thread _logThread; // 日志线程引用，便于等待退出
 
-        // ⚠️ 必须与你的 x64 ProductKeyUtilities.dll 匹配
-        private const long GET_PID2_OFFSET_X64 = 50073;
+        // ⚠️ 修改1：替换为 x86 版本的 GetPID2 偏移（必须重新用IDA计算！）
+        // 提示：x86 DLL 的偏移和 x64 完全不同，50073 是 x64 偏移，需替换
+        private const long GET_PID2_OFFSET_X86 = 0; // 请用IDA计算x86 DLL的GetPID2 RVA偏移后填写
         private const string PRODUCT_KEY = "VK7JG-NPHTM-C97JM-9MPGT-3V66T";
         private const string CONFIG_FILE = "pkconfig_winNext.xrm-ms";
         #endregion
@@ -78,12 +83,12 @@ namespace 密钥检测关键字符串Hook
         static void Main()
         {
             Console.OutputEncoding = Encoding.UTF8;
-            Console.WriteLine("=== KeyHook Optimized (x64 / EasyHook) ===\n");
+            Console.WriteLine("=== KeyHook Optimized (x86 / EasyHook) ===\n");
 
-            // 环境校验：仅 x64
-            if (IntPtr.Size != 8)
+            // 修改2：环境校验改为仅支持 x86
+            if (IntPtr.Size != 4) // x86下IntPtr.Size=4，x64=8
             {
-                Console.WriteLine("❌ 仅支持 x64 进程，请修改项目编译配置");
+                Console.WriteLine("❌ 仅支持 x86 进程，请修改项目编译配置");
                 return;
             }
 
@@ -93,15 +98,18 @@ namespace 密钥检测关键字符串Hook
 
             try
             {
+                // 新增：设置DLL搜索路径为当前目录（x86下必加，避免加载不到x86 DLL）
+                SetDllDirectory(Environment.CurrentDirectory);
+
                 // 配置文件校验
                 string configPath = Path.Combine(Environment.CurrentDirectory, CONFIG_FILE);
                 if (!File.Exists(configPath))
                     throw new FileNotFoundException("配置文件不存在", configPath);
 
-                // 加载核心 DLL
+                // 加载核心 DLL（x86版本的ProductKeyUtilities.dll）
                 hDll = LoadLibrary("ProductKeyUtilities.dll");
                 if (hDll == IntPtr.Zero)
-                    throw new Win32Exception(Marshal.GetLastWin32Error(), "ProductKeyUtilities.dll 加载失败");
+                    throw new Win32Exception(Marshal.GetLastWin32Error(), "ProductKeyUtilities.dll (x86) 加载失败");
 
                 // 安装 Hook
                 InstallHook(hDll);
@@ -113,12 +121,14 @@ namespace 密钥检测关键字符串Hook
                 StartLogWorker();
 
                 // 解析产品密钥信息
-                ParseProductKeyInfo(hDll, PRODUCT_KEY, configPath);
+                //ParseProductKeyInfo(hDll, PRODUCT_KEY, configPath);
 
                 // 调用 PidGenX 触发 Hook
-                CallPidGenX(hDll, PRODUCT_KEY, configPath, p1, p2, p3);
+                //CallPidGenX(hDll, PRODUCT_KEY, configPath, p1, p2, p3);
 
                 Console.WriteLine("\n✔ 执行完成，按回车退出...");
+                Console.ReadLine();
+                CallPidGenX(hDll, PRODUCT_KEY, configPath, p1, p2, p3);
                 Console.ReadLine();
             }
             catch (Exception ex)
@@ -145,8 +155,8 @@ namespace 密钥检测关键字符串Hook
         /// </summary>
         private static void InstallHook(IntPtr hModule)
         {
-            // 计算 GetPID2 函数实际地址（基址 + RVA 偏移）
-            IntPtr targetAddr = new IntPtr(hModule.ToInt64() + GET_PID2_OFFSET_X64);
+            // 修改3：使用 x86 偏移计算目标地址
+            IntPtr targetAddr = new IntPtr(hModule.ToInt64() + GET_PID2_OFFSET_X86);
             Console.WriteLine($"🪝 准备 Hook GetPID2 @ 0x{targetAddr.ToInt64():X8}");
 
             // 创建 Hook（EasyHook 标准写法）
@@ -201,17 +211,19 @@ namespace 密钥检测关键字符串Hook
 
         #region ===== 工具方法（模块化） =====
         /// <summary>
-        /// 解析 FileTime 结构体（修复内存偏移）
+        /// 解析 FileTime 结构体（修改4：适配x86内存布局）
         /// </summary>
         private static void ParseFileTimeStruct(IntPtr ptr)
         {
             try
             {
-                // 严格匹配结构体内存布局：
-                // 前 4 字节 = index (int)，接下来 8 字节 = ActConfigKey 指针 (IntPtr)
-                int index = Marshal.ReadInt32(ptr); // 读取 index
-                IntPtr keyPtr = Marshal.ReadIntPtr(ptr, 4); // 从第 4 字节读取 ActConfigKey 指针
-                string actConfigKey = Marshal.PtrToStringUni(keyPtr); // 转为字符串
+                // x86 下内存布局（指针占4字节）：
+                // 前 4 字节 = index (int)，接下来 4 字节 = ActConfigKey 指针 (IntPtr)
+                int index = Marshal.ReadInt32(ptr); // 读取index（x86/x64都一样，int占4字节）
+                IntPtr keyPtr = Marshal.ReadIntPtr(ptr, 4); // x86下指针占4字节，偏移4字节正确
+
+                // x86下字符串读取方式不变
+                string actConfigKey = Marshal.PtrToStringUni(keyPtr);
 
                 _logQueue.Enqueue($"[HOOK] FileTime 解析：Index={index}, ActConfigKey={actConfigKey ?? "空"}");
             }
@@ -226,6 +238,7 @@ namespace 密钥检测关键字符串Hook
         /// </summary>
         private static (IntPtr, IntPtr, IntPtr) AllocateBuffers()
         {
+            // 缓冲区大小 x86/x64 一致（字节数不随位数变）
             IntPtr buf1 = Marshal.AllocHGlobal(100);
             IntPtr buf2 = Marshal.AllocHGlobal(164);
             IntPtr buf3 = Marshal.AllocHGlobal(1272);
@@ -235,7 +248,7 @@ namespace 密钥检测关键字符串Hook
             RtlZeroMemory(buf2, 164);
             RtlZeroMemory(buf3, 1272);
 
-            // 设置 DLL 要求的标志位
+            // 设置 DLL 要求的标志位（x86 DLL 标志位可能和x64一致，也可能不同，需验证）
             Marshal.WriteByte(buf1, 0, 50);
             Marshal.WriteByte(buf2, 0, 164);
             Marshal.WriteByte(buf3, 0, 248);
@@ -353,7 +366,7 @@ namespace 密钥检测关键字符串Hook
             // 释放 DLL
             if (hDll != IntPtr.Zero && FreeLibrary(hDll))
             {
-                Console.WriteLine($"✅ ProductKeyUtilities.dll 已释放");
+                Console.WriteLine($"✅ ProductKeyUtilities.dll (x86) 已释放");
             }
 
             Console.WriteLine($"✅ 所有资源清理完成");
