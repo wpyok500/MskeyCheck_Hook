@@ -55,6 +55,8 @@ namespace 密钥检测关键字符串Hook
 
             IntPtr hModule = LoadLibrary("ProductKeyUtilities.dll");
             hModule_base = hModule;
+            //string dll基址 = "0x"+hModule.ToInt32().ToString("X");
+            //Console.WriteLine("hModule = 0x" + hModule.ToInt32().ToString("X"));
 
             if (hModule == IntPtr.Zero) { Console.WriteLine("无法加载 DLL"); return; }
 
@@ -80,6 +82,7 @@ namespace 密钥检测关键字符串Hook
             int num = delegateForFunctionPointer(ProductKeys, pkeyconfigxml, "55041", IntPtr.Zero, intPtr, intPtr2, intPtr3);
             Console.WriteLine("PidGenX Result: " + num);
 
+
             HookAPI.Unistall();
             Console.ReadLine();
         }
@@ -90,6 +93,13 @@ namespace 密钥检测关键字符串Hook
             int num = 0;
             try
             {
+                Console.WriteLine("触发 GetPID2，开始解析 ActConfigKey");
+                // 直接解析参数，不用调用原始函数
+                if (intptr_1 != IntPtr.Zero)
+                {
+                    FileTime fileTime = Marshal.PtrToStructure<FileTime>(intptr_1);
+                    Console.WriteLine("ActConfigKey: " + fileTime.ActConfigKey);
+                }
                 if (hModule_base != IntPtr.Zero)
                 {
                     WrapperGetPID2Delegate wrapper = FastCall.StdcallToFastcall<WrapperGetPID2Delegate>(FastCall.InvokePtr);
