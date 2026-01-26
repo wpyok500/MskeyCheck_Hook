@@ -155,17 +155,17 @@ namespace 密钥检测关键字符串Hook
        
 
         // 2. 修正后的回调逻辑
-        private static int MyGetPID2_Callback(IntPtr FileTime, IntPtr MPID, int LangId, int dwBuildNumber, int unk, IntPtr DPID2)
+        private static int MyGetPID2_Callback(IntPtr FileTimePtr, IntPtr MPID, int LangId, int dwBuildNumber, int unk, IntPtr DPID2)
         {
             // 关键：打印进入日志，确认 Hook 确实触发了
             Console.WriteLine($"\n[HOOK] ⚡ GetPID2 被调用! 参数: LangId={LangId}, Build={dwBuildNumber}");
-
+            //object obj2 = Marshal.PtrToStructure(FileTimePtr, typeof(FileTime));
             int num = -1;
             try
             {
                 // 使用 OriginalGetPID2 委托调用原函数
                 // 确保 OriginalGetPID2 是在 Main 中通过 Marshal.GetDelegateForFunctionPointer 获取的
-                num = _originalGetPID2(FileTime, MPID, LangId, dwBuildNumber, unk, DPID2);
+                num = _originalGetPID2(FileTimePtr, MPID, LangId, dwBuildNumber, unk, DPID2);
                 Console.WriteLine($"[HOOK] ✅ 原函数返回: {num}");
             }
             catch (Exception ex)
@@ -175,17 +175,17 @@ namespace 密钥检测关键字符串Hook
             }
 
             // 解析逻辑
-            if (FileTime != IntPtr.Zero)
+            if (FileTimePtr != IntPtr.Zero)
             {
                 try
                 {
                     // 如果在此处崩溃，说明 FileTime 内存结构与我们定义的结构体不一致
                     // 先尝试手动读取前 4 字节（index）
-                    int index = Marshal.ReadInt32(FileTime);
+                    int index = Marshal.ReadInt32(FileTimePtr);
 
                     // 尝试读取指针偏移后的字符串
                     // 很多时候 ActConfigKey 是在结构体的偏移位置，或者是直接紧随其后的字符串
-                    FileTime ft = Marshal.PtrToStructure<FileTime>(FileTime);
+                    FileTime ft = Marshal.PtrToStructure<FileTime>(FileTimePtr);
                     if (!string.IsNullOrEmpty(ft.ActConfigKey))
                     {
                         Console.WriteLine($"[HOOK] 🎯 成功抓取 ActConfigKey: {ft.ActConfigKey}");
@@ -193,7 +193,7 @@ namespace 密钥检测关键字符串Hook
                     else
                     {
                         // 兜底方案：直接把 FileTime 指针处的内存当做字符串读一下试试
-                        string raw = Marshal.PtrToStringUni(new IntPtr(FileTime.ToInt64() + 4));
+                        string raw = Marshal.PtrToStringUni(new IntPtr(FileTimePtr.ToInt64() + 4));
                         Console.WriteLine($"[HOOK] 🔍 原始内存探测: {raw}");
                     }
                 }
