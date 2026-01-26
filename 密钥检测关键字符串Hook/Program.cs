@@ -75,7 +75,7 @@ namespace 密钥检测关键字符串Hook
             //如果要hook该函数  
             IntPtr HookPtr = FastCall.WrapStdCallInFastCall(Marshal.GetFunctionPointerForDelegate(new GetPID2Delegate(MyGetPID2)));
             Int32 a = hModule.ToInt32();
-            Int32 b = hModule.ToInt32() + 50073;
+            IntPtr b = new IntPtr(hModule.ToInt32() + 50073);
             HookAPI HookFunc = new HookAPI(new IntPtr(hModule.ToInt32() + 50073), HookPtr);
             HookAPI.Install();
 
