@@ -121,15 +121,14 @@ namespace 密钥检测关键字符串Hook
                 StartLogWorker();
 
                 // 解析产品密钥信息
-                //ParseProductKeyInfo(hDll, PRODUCT_KEY, configPath);
+                ParseProductKeyInfo(hDll, PRODUCT_KEY, configPath);
 
                 // 调用 PidGenX 触发 Hook
-                //CallPidGenX(hDll, PRODUCT_KEY, configPath, p1, p2, p3);
+                CallPidGenX(hDll, PRODUCT_KEY, configPath, p1, p2, p3);
 
                 Console.WriteLine("\n✔ 执行完成，按回车退出...");
                 Console.ReadLine();
-                CallPidGenX(hDll, PRODUCT_KEY, configPath, p1, p2, p3);
-                Console.ReadLine();
+                
             }
             catch (Exception ex)
             {
