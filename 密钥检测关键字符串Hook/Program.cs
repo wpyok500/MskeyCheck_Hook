@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -99,6 +101,7 @@ namespace 密钥检测关键字符串Hook
                 {
                     FileTime fileTime = Marshal.PtrToStructure<FileTime>(intptr_1);
                     Console.WriteLine("ActConfigKey: " + fileTime.ActConfigKey);
+
                 }
                 if (hModule_base != IntPtr.Zero)
                 {
@@ -110,6 +113,12 @@ namespace 密钥检测关键字符串Hook
                     {
                         FileTime fileTime = (FileTime)Marshal.PtrToStructure(intptr_1, typeof(FileTime));
                         Console.WriteLine("Hooked ActConfigKey: " + fileTime.ActConfigKey);
+
+                        // 1. 智能解析intptr_3（自动识别分隔符）
+                        var (fullPid, validChars) = IntPtr3Parser.ParseWithSeparator(intptr_3);
+
+                        // 2. 输出完整解析结果
+                        IntPtr3Parser.PrintFullResult(fullPid, validChars);
                     }
                 }
             }
@@ -119,10 +128,30 @@ namespace 密钥检测关键字符串Hook
             }
             return num;
         }
+
+        private static int MyGetPID2Callback(IntPtr intptr_1,IntPtr intptr_2,int int_0,int int_1,int int_2, IntPtr intptr_3)
+        {
+            try
+            {
+                var result = IntPtr3Parser.ParseWithSeparator(intptr_3);
+                if (!string.IsNullOrEmpty(result.Item1))
+                    IntPtr3Parser.PrintFullResult(result.Item1, result.Item2);
+            }
+            catch { /* Hook 场景下，绝不让异常冒泡 */ }
+
+            IntPtr originalFunc = IntPtr.Add(hModule_base, 50073);
+            var original = (GetPID2Delegate)
+                Marshal.GetDelegateForFunctionPointer(originalFunc, typeof(GetPID2Delegate));
+
+            return original(intptr_1, intptr_2, int_0, int_1, int_2, intptr_3);
+        }
+
     }
 
 
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto, Pack = 4)]
+
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
     public struct FileTime
     {
         // Token: 0x0400006D RID: 109
@@ -132,4 +161,133 @@ namespace 密钥检测关键字符串Hook
         [MarshalAs(UnmanagedType.LPWStr)]
         public string ActConfigKey;
     }
+
+
+    public static class IntPtr3Parser
+    {
+        /// <summary>
+        /// 智能解析 intptr_3 内存（.NET 4.8 兼容）
+        /// </summary>
+        public static Tuple<string, List<string>> ParseWithSeparator(
+            IntPtr intptr3,
+            int maxBytes = 96)
+        {
+            if (intptr3 == IntPtr.Zero)
+                throw new ArgumentNullException("intptr3");
+
+            byte[] buffer = new byte[maxBytes];
+            Marshal.Copy(intptr3, buffer, 0, maxBytes);
+
+            List<char> fullChars = new List<char>();
+            List<string> tokens = new List<string>();
+
+            int zeroCount = 0;
+
+            for (int i = 0; i < buffer.Length; i++)
+            {
+                byte b = buffer[i];
+
+                if (b == 0)
+                {
+                    zeroCount++;
+                    if (zeroCount >= 2)
+                        break;
+                    continue;
+                }
+
+                zeroCount = 0;
+
+                // 只允许可打印 ASCII
+                if (b < 32 || b > 126)
+                    continue;
+
+                char c = (char)b;
+                fullChars.Add(c);
+
+                if (char.IsLetterOrDigit(c))
+                    tokens.Add(c.ToString());
+                else if (c == '-')
+                    tokens.Add("-");
+            }
+
+            return Tuple.Create(new string(fullChars.ToArray()), tokens);
+        }
+
+        /// <summary>
+        /// 打印 PID 的完整业务解析结果
+        /// </summary>
+        public static void PrintFullResult(string fullPid, List<string> tokens)
+        {
+            Console.WriteLine("\n===== intptr_3 解析结果 =====");
+            Console.WriteLine("完整 PID：" + fullPid);
+            Console.WriteLine("字符拆分：" + string.Join(" ", tokens));
+
+            if (string.IsNullOrEmpty(fullPid))
+                return;
+
+            string[] segments = fullPid.Split(new char[] { '-' }, StringSplitOptions.RemoveEmptyEntries);
+
+            if (segments.Length < 4)
+                return;
+
+            Console.WriteLine("\n--- PID 各段含义 ---");
+            Console.WriteLine("1. 版本段：" + segments[0] + " → " + GetSegmentDesc(segments[0], 1));
+            Console.WriteLine("2. 授权段：" + segments[1] + " → " + GetSegmentDesc(segments[1], 2));
+            Console.WriteLine("3. 校验段：" + segments[2] + " → " + GetSegmentDesc(segments[2], 3));
+            Console.WriteLine("4. 区域段：" + segments[3] + " → " + GetSegmentDesc(segments[3], 4));
+        }
+
+        /// <summary>
+        /// PID 段语义解析（C# 7.3 写法）
+        /// </summary>
+        private static string GetSegmentDesc(string segment, int segmentType)
+        {
+            if (segmentType == 1)
+            {
+                switch (segment)
+                {
+                    case "00330":
+                        return "Windows 10/11 专业版（零售）";
+                    case "00340":
+                        return "Windows 10/11 家庭版（零售）";
+                    default:
+                        return "未知版本类型（" + segment + ")";
+                }
+            }
+
+            if (segmentType == 2)
+            {
+                switch (segment)
+                {
+                    case "80000":
+                        return "零售授权（Retail）";
+                    case "00000":
+                        return "批量授权（VL / KMS）";
+                    default:
+                        return "未知授权类型（" + segment + ")";
+                }
+            }
+
+            if (segmentType == 3)
+            {
+                if (segment == "00000")
+                    return "默认校验位（未自定义）";
+                return "自定义校验位（" + segment + ")";
+            }
+
+            if (segmentType == 4)
+            {
+                if (segment.EndsWith("766"))
+                    return "全球通用区域";
+                if (segment.EndsWith("866"))
+                    return "中国区专属版本";
+                return "区域校验码（" + segment + ")";
+            }
+
+            return "未知段";
+        }
+    }
+
+
+
 }
