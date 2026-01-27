@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -116,6 +117,7 @@ namespace 密钥检测关键字符串Hook
 
                         // 1. 智能解析intptr_3（自动识别分隔符）
                         var (fullPid, validChars) = IntPtr3Parser.ParseWithSeparator(intptr_3);
+                        var (fullPid1, validChars1) = IntPtr3Parser.ParseAsWholeString(intptr_3);
 
                         // 2. 输出完整解析结果
                         IntPtr3Parser.PrintFullResult(fullPid, validChars);
@@ -165,6 +167,46 @@ namespace 密钥检测关键字符串Hook
 
     public static class IntPtr3Parser
     {
+        /// <summary>
+        /// 简化版：先转完整字符串，再解析（.NET 4.8 兼容）
+        /// </summary>
+        public static Tuple<string, List<string>> ParseAsWholeString(IntPtr intptr3, int maxBytes = 96)
+        {
+            if (intptr3 == IntPtr.Zero)
+                throw new ArgumentNullException("intptr3");
+
+            byte[] buffer = new byte[maxBytes];
+            try
+            {
+                // 1. 读取内存字节到数组
+                Marshal.Copy(intptr3, buffer, 0, maxBytes);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"内存读取失败：{ex.Message}");
+                return Tuple.Create(string.Empty, new List<string>());
+            }
+
+            // 2. 直接转完整ASCII字符串（核心优化）
+            string fullStr = Encoding.ASCII.GetString(buffer);
+
+            // 3. 截断：以连续两个空字节为结束标志（更精准）
+            int doubleNullIndex = fullStr.IndexOf("\0\0");
+            string fullPid = doubleNullIndex > 0 ? fullStr.Substring(0, doubleNullIndex) : fullStr;
+
+            // 4. 过滤不可打印字符（保留数字、字母、分隔符 '-' 和 '.'）
+            fullPid = new string(fullPid.Where(c => char.IsLetterOrDigit(c) || c == '-' || c == '.').ToArray());
+
+            // 5. 拆分字符/分隔符（按需）
+            List<string> tokens = new List<string>();
+            foreach (char c in fullPid)
+            {
+                tokens.Add(c.ToString());
+            }
+
+            return Tuple.Create(fullPid, tokens);
+        }
+
         /// <summary>
         /// 智能解析 intptr_3 内存（.NET 4.8 兼容）
         /// </summary>
