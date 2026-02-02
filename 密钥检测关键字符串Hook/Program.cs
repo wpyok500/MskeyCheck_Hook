@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.SqlServer.Server;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -22,16 +23,10 @@ namespace 密钥检测关键字符串Hook
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]  //偏移0xA9CB
         private delegate int WrapperSub551FA9CBDelegate(IntPtr functionPtr, IntPtr a1, string a2, IntPtr args);
 
-        [UnmanagedFunctionPointer(CallingConvention.StdCall,CharSet = CharSet.Unicode,SetLastError = false)]
-        public delegate int Sub551FA7D8Delegate(
-            IntPtr buffer,   // wchar_t* Buffer（输出）
-            int cch,         // 字符数量（不是字节）
-            string format,   // wchar_t* Format
-            IntPtr args      // va_list（原样透传，绝对不要动）
-        );
+        //执行原生函数的委托：匹配Sub551FA9CB的参数，显式FastCall
+        [UnmanagedFunctionPointer(CallingConvention.FastCall, CharSet = CharSet.Unicode)]
+        private delegate int NativeSub551FA9CB(IntPtr a1,string format,IntPtr args);
 
-        [UnmanagedFunctionPointer(CallingConvention.StdCall)]  //偏移0xA7D8 ，基址0x55150000
-        private delegate int WrapperSub551FA7D8Delegate(IntPtr functionPtr, IntPtr buffer, int cch, string format, IntPtr args);
 
         [DllImport("kernel32.dll")]
         internal static extern bool RtlZeroMemory(IntPtr destination, int length);
@@ -59,6 +54,8 @@ namespace 密钥检测关键字符串Hook
         private delegate int DelegateGetPKeyData(string ProductKey, string PkeyConfigPath, string MPCID, string pwszPKeyAlgorithm, IntPtr OemId, IntPtr OtherId, out string IID, out string Description, out string channel, out string subType, StringBuilder PID);
 
         private static IntPtr hModule_base = IntPtr.Zero;
+        private static Int32 hookFOffset = 0xA9CB;   
+
         static void Main(string[] args)
         {
 
@@ -79,14 +76,14 @@ namespace 密钥检测关键字符串Hook
             Console.WriteLine("模块基址：0x" + hModule.ToString("X8"));
 
             //如果要hook该函数  
-            IntPtr HookPtr = FastCall.WrapStdCallInFastCall(Marshal.GetFunctionPointerForDelegate(new Sub551FA7D8Delegate(MyGetPID2)));
+            IntPtr HookPtr = FastCall.WrapStdCallInFastCall(Marshal.GetFunctionPointerForDelegate(new Sub551FA9CBDelegate(MyGetPID2)));
             Int32 a = hModule.ToInt32();
-            Int32 b = hModule.ToInt32() + 0xA7D8;
-            Console.WriteLine("模块基址：0x" + new IntPtr(hModule.ToInt32() + 0xA7D8).ToString("X8"));
+            Int32 b = hModule.ToInt32() + hookFOffset;
+            Console.WriteLine("模块基址：0x" + new IntPtr(hModule.ToInt32() + hookFOffset).ToString("X8"));
             Console.WriteLine("按任意健开始hook" );
 
             Console.ReadLine();
-            HookAPI HookFunc = new HookAPI(new IntPtr(hModule.ToInt32() + 0xA7D8), HookPtr);
+            HookAPI HookFunc = new HookAPI(new IntPtr(hModule.ToInt32() + hookFOffset), HookPtr);
             HookAPI.Install();
 
             //另外一种hook 写法 HookAPI与Hook类
@@ -105,7 +102,7 @@ namespace 密钥检测关键字符串Hook
 
             Console.ReadLine();
         }
-        private static int MyGetPID2(IntPtr buffer, int cch, string format, IntPtr args)
+        private static int MyGetPID2(IntPtr a1, string a2, IntPtr args)
         {
             //两处HookAPI
             // Hook.Unistall();
@@ -116,15 +113,33 @@ namespace 密钥检测关键字符串Hook
             {
                 if (hModule_base != IntPtr.Zero)
                 {
-                    WrapperSub551FA7D8Delegate wrapperGetPID2Delegate = FastCall.StdcallToFastcall<WrapperSub551FA7D8Delegate>(FastCall.InvokePtr);
-                    // 1. 先调用原生函数，完成v28的内存赋值
-                    num = wrapperGetPID2Delegate(new IntPtr(hModule_base.ToInt32() + 0xA7D8), buffer, cch, format, args);
-                    string text = Marshal.PtrToStringUni(buffer);
+                    int hr;
 
-                    Console.WriteLine(
-                        $"[sub_551FA7D8] hr=0x{num:X8}, text=\"{text}\""
-                    );
-                    Console.WriteLine($"cch = {cch}");
+                    try
+                    {
+                        // 直接调用“真正的原函数”
+                        var original = Marshal.GetDelegateForFunctionPointer<NativeSub551FA9CB>(hModule_base + hookFOffset);
+
+                        hr = original(a1, a2, args);
+
+                        // ===== 此时 Buffer / a1 已经被 vsnwprintf 写完 =====
+
+                        // 例：从 a1 结构中取 wchar_t*
+                        IntPtr textPtr = Marshal.ReadIntPtr(a1, 0x14); // 偏移你已逆出来
+                        string text = Marshal.PtrToStringUni(textPtr);
+
+                        Console.WriteLine($"[sub_551FA9CB] hr=0x{hr:X8}, text=\"{text}\"");
+                    }
+                    finally
+                    {
+                        HookAPI.Install();
+                    }
+
+                    //WrapperSub551FA9CBDelegate wrapperGetPID2Delegate = FastCall.StdcallToFastcall<WrapperSub551FA9CBDelegate>(FastCall.InvokePtr);
+                    //Console.WriteLine("InvokePtr = 0x" + FastCall.InvokePtr.ToString("X8"));
+                    //// 1. 先调用原生函数，完成v28的内存赋值
+                    //num = wrapperGetPID2Delegate(new IntPtr(hModule_base.ToInt32() + hookFOffset), a1, a2, args);
+
                     // 3. 再打印num
                     Console.WriteLine("num:" + num);
 
