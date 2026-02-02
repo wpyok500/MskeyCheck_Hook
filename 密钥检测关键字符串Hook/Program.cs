@@ -1,7 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -9,327 +6,158 @@ namespace 密钥检测关键字符串Hook
 {
     class Program
     {
-        [UnmanagedFunctionPointer(CallingConvention.StdCall, CharSet = CharSet.Unicode)]
-        private delegate int GetPID2Delegate(IntPtr FileTime, IntPtr MPID, int LangId, int dwBuildNumber, int unk, IntPtr DPID2);
+        private static IntPtr _originalFunctionPtr = IntPtr.Zero;
 
-        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-        private delegate int WrapperGetPID2Delegate(IntPtr functionPtr, IntPtr FileTime, IntPtr MPID, int LangId, int dwBuildNumber, int unk, IntPtr DPID2);
-
-        [DllImport("kernel32.dll")]
-        internal static extern bool RtlZeroMemory(IntPtr destination, int length);
-
-        [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Unicode)]
-        internal static extern IntPtr LoadLibrary(string lpFileName);
-
-        [DllImport("kernel32.dll")]
-        internal static extern IntPtr GetProcAddress(IntPtr hModule, string lpProcName);
-
-        [DllImport("kernel32.dll")]
-        internal static extern bool FreeLibrary(IntPtr hModule);
+        #region 委托定义 - 核心修改：改为 Cdecl
+        // ✅ 修正：使用 ThisCall。第一个参数对应伪代码的 BYTE *this (ECX)
+        // 其余 4 个参数对应 a2, a3, a4, a5
+        [UnmanagedFunctionPointer(CallingConvention.ThisCall, CharSet = CharSet.Unicode)]
+        private delegate int GetPID2Delegate(
+            IntPtr pThis,    // 对应伪代码 BYTE *this
+            IntPtr a2,       // 对应 unsigned __int16 *a2
+            IntPtr a3,       // 对应 char *a3
+            IntPtr a4,       // 对应 void *a4
+            IntPtr a5        // 对应 const unsigned __int16 **a5
+        );
 
         [UnmanagedFunctionPointer(CallingConvention.StdCall, CharSet = CharSet.Unicode)]
-        private delegate int fnPidGenX(string ProuctKey, string PkeyPath, string MPCID, IntPtr UnknownUsage, IntPtr PID2, IntPtr PID3, IntPtr PID4);
+        private delegate int DelegateGetPKeyData(
+            string ProductKey,
+            string PkeyConfigPath,
+            string MPCID,
+            string pwszPKeyAlgorithm,
+            IntPtr OemId,
+            IntPtr OtherId,
+            out string IID,
+            out string Description,
+            out string channel,
+            out string subType,
+            StringBuilder PID);
+        #endregion
 
-        [UnmanagedFunctionPointer(CallingConvention.StdCall, CharSet = CharSet.Unicode)]
-        private delegate int DelegateGetPKeyData(string ProductKey, string PkeyConfigPath, string MPCID, string pwszPKeyAlgorithm, IntPtr OemId, IntPtr OtherId, out string IID, out string Description, out string channel, out string subType, StringBuilder PID);
+        #region WinAPI
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        static extern IntPtr LoadLibrary(string lpFileName);
 
-        private static IntPtr hModule_base = IntPtr.Zero;
+        [DllImport("kernel32.dll", SetLastError = true)]
+        static extern IntPtr GetProcAddress(IntPtr hModule, string lpProcName);
 
-        static void Main(string[] args)
+        [DllImport("kernel32.dll")]
+        static extern bool FreeLibrary(IntPtr hModule);
+        #endregion
+
+        private const int HOOK_OFFSET = 0x1694C;
+
+        static void Main()
         {
-            // 确保以 x86 模式运行
-            if (IntPtr.Size == 8) { Console.WriteLine("请在 x86 模式下运行此程序！"); return; }
-
-            string ProductKeys = "VK7JG-NPHTM-C97JM-9MPGT-3V66T";
-            string pkeyconfigxml = AppDomain.CurrentDomain.BaseDirectory + "pkconfig_winNext.xrm-ms";
-
-            IntPtr intPtr = Marshal.AllocHGlobal(100);
-            RtlZeroMemory(intPtr, 100);
-            Marshal.WriteByte(intPtr, 0, 50);
-
-            IntPtr intPtr2 = Marshal.AllocHGlobal(164);
-            RtlZeroMemory(intPtr2, 164);
-            Marshal.WriteByte(intPtr2, 0, 164);
-
-            IntPtr intPtr3 = Marshal.AllocHGlobal(1272);
-            RtlZeroMemory(intPtr3, 1272);
-            Marshal.WriteByte(intPtr3, 0, 248);
-            Marshal.WriteByte(intPtr3, 1, 4);
+            if (IntPtr.Size == 8)
+            {
+                Console.WriteLine("❌ 必须在 x86 模式下运行 (Project -> Properties -> Platform Target: x86)");
+                Console.ReadLine();
+                return;
+            }
 
             IntPtr hModule = LoadLibrary("ProductKeyUtilities.dll");
-            hModule_base = hModule;
-            //string dll基址 = "0x"+hModule.ToInt32().ToString("X");
-            //Console.WriteLine("hModule = 0x" + hModule.ToInt32().ToString("X"));
+            if (hModule == IntPtr.Zero) return;
 
-            if (hModule == IntPtr.Zero) { Console.WriteLine("无法加载 DLL"); return; }
+            _originalFunctionPtr = new IntPtr(hModule.ToInt32() + HOOK_OFFSET);
 
-            // 获取安装ID
-            IntPtr procAddress1 = GetProcAddress(hModule, "GetPKeyData");
-            DelegateGetPKeyData delegateForFunctionPointer1 = Marshal.GetDelegateForFunctionPointer<DelegateGetPKeyData>(procAddress1);
-            string IID, Description, channel, subType;
-            delegateForFunctionPointer1(ProductKeys, pkeyconfigxml, null, null, IntPtr.Zero, IntPtr.Zero, out IID, out Description, out channel, out subType, null);
-            Console.WriteLine("IID: " + IID);
+            // 安装 Hook
+            //IntPtr hookHandler = FastCall.WrapStdCallInFastCall(Marshal.GetFunctionPointerForDelegate(new GetPID2Delegate(MyGetPID2)));
+            //new HookAPI(_originalFunctionPtr, hookHandler);
 
-            // 设置 Hook
-            IntPtr hookHandler = FastCall.WrapStdCallInFastCall(Marshal.GetFunctionPointerForDelegate(new GetPID2Delegate(MyGetPID2)));
-
-            // 注意：50073 是偏移量，必须确保对应你的 DLL 版本
-            IntPtr targetAddress = new IntPtr(hModule.ToInt32() + 50073);
-            HookAPI hookFunc = new HookAPI(targetAddress, hookHandler);
+            // 初始化 Hook  ThisCall
+            IntPtr hookHandler = Marshal.GetFunctionPointerForDelegate(new GetPID2Delegate(MyGetPID2));
+            new HookAPI(_originalFunctionPtr, hookHandler);
             HookAPI.Install();
 
-            // 执行 PidGenX 触发 Hook
-            IntPtr procAddress = GetProcAddress(hModule, "PidGenX");
-            fnPidGenX delegateForFunctionPointer = Marshal.GetDelegateForFunctionPointer<fnPidGenX>(procAddress);
+            Console.WriteLine("✅ Hook 已安装，正在触发 GetPKeyData...");
+            Console.WriteLine($"按任意健继续，hModule地址为：0x{hModule.ToInt32():X8}"); //0x{_originalFunctionPtr.ToInt32():X8}
+            Console.WriteLine("按任意健继续，_originalFunctionPtr地址为：0x" + _originalFunctionPtr.ToString("X8")); //0x{_originalFunctionPtr.ToInt32():X8}
+            Console.ReadLine();
 
-            int num = delegateForFunctionPointer(ProductKeys, pkeyconfigxml, "55041", IntPtr.Zero, intPtr, intPtr2, intPtr3);
-            Console.WriteLine("PidGenX Result: " + num);
+            // 触发代码
+            IntPtr proc = GetProcAddress(hModule, "GetPKeyData");
+            var getPKeyData = Marshal.GetDelegateForFunctionPointer<DelegateGetPKeyData>(proc);
+            string productKey = "VK7JG-NPHTM-C97JM-9MPGT-3V66T";
+            string configPath = AppDomain.CurrentDomain.BaseDirectory + "pkconfig_winNext.xrm-ms";
 
+            try
+            {
+                getPKeyData(productKey, configPath, null, null, IntPtr.Zero, IntPtr.Zero,
+                            out _, out _, out _, out _, null);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"触发异常: {ex.Message}");
+            }
 
-            HookAPI.Unistall();
+            //HookAPI.Unistall();
+            FreeLibrary(hModule);
             Console.ReadLine();
         }
 
-        private static int MyGetPID2(IntPtr intptr_1, IntPtr intptr_2, int int_0, int int_1, int int_2, IntPtr intptr_3)
+        #region Hook 回调逻辑
+        private static int MyGetPID2(IntPtr pThis, IntPtr a2, IntPtr a3, IntPtr a4, IntPtr a5)
         {
-            HookAPI.Unistall(); // 必须先卸载，否则会导致递归死循环
-            int num = 0;
+            // 1. 卸载 Hook
+            HookAPI.Unistall();
+
+            // 2. 准备读取 v28
+            // 我们需要知道 v28 什么时候被赋值。
+            // 伪代码显示：v28 在 sub_551FABBC 调用后才有值。
+
+            int result = 0;
             try
             {
-                Console.WriteLine("触发 GetPID2，开始解析 ActConfigKey");
-                // 直接解析参数，不用调用原始函数
-                if (intptr_1 != IntPtr.Zero)
+                // 尝试寻找真正的函数指针（这里可能需要你重新核对该函数在导出表或 IDA 中的开头）
+                var realFunc = Marshal.GetDelegateForFunctionPointer<GetPID2Delegate>(_originalFunctionPtr);
+                result = realFunc(pThis, a2, a3, a4, a5);
+
+                // 3. 在返回后，通过当前的 EBP 偏移读取
+                // 伪代码：v28 在 [ebp-0x20]
+                IntPtr currentEbp = StackHelper.GetCurrentEbp();
+                IntPtr v28Addr = new IntPtr(currentEbp.ToInt32() - 0x20);
+
+                // 检查地址是否有效
+                int v28Ptr = Marshal.ReadInt32(v28Addr);
+                if (v28Ptr != 0)
                 {
-                    FileTime fileTime = Marshal.PtrToStructure<FileTime>(intptr_1);
-                    Console.WriteLine("ActConfigKey: " + fileTime.ActConfigKey);
-
+                    Console.WriteLine("v28 捕获成功: " + Marshal.PtrToStringUni((IntPtr)v28Ptr));
                 }
-                if (hModule_base != IntPtr.Zero)
-                {
-                    WrapperGetPID2Delegate wrapper = FastCall.StdcallToFastcall<WrapperGetPID2Delegate>(FastCall.InvokePtr);
-                    IntPtr originalFunc = new IntPtr(hModule_base.ToInt32() + 50073);
-                    num = wrapper(originalFunc, intptr_1, intptr_2, int_0, int_1, int_2, intptr_3);
-
-                    if (num == 0)
-                    {
-                        FileTime fileTime = (FileTime)Marshal.PtrToStructure(intptr_1, typeof(FileTime));
-                        Console.WriteLine("Hooked ActConfigKey: " + fileTime.ActConfigKey);
-
-                        // 1. 智能解析intptr_3（自动识别分隔符）
-                        var (fullPid, validChars) = IntPtr3Parser.ParseWithSeparator(intptr_3);
-                        var (fullPid1, validChars1) = IntPtr3Parser.ParseAsWholeString(intptr_3);
-
-                        // 2. 输出完整解析结果
-                        IntPtr3Parser.PrintFullResult(fullPid, validChars);
-                    }
-                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("执行崩溃，可能是地址偏移或调用约定错误: " + ex.Message);
             }
             finally
             {
                 HookAPI.Install();
             }
-            return num;
+            return result;
         }
+        #endregion
 
-        private static int MyGetPID2Callback(IntPtr intptr_1,IntPtr intptr_2,int int_0,int int_1,int int_2, IntPtr intptr_3)
-        {
-            try
-            {
-                var result = IntPtr3Parser.ParseWithSeparator(intptr_3);
-                if (!string.IsNullOrEmpty(result.Item1))
-                    IntPtr3Parser.PrintFullResult(result.Item1, result.Item2);
-            }
-            catch { /* Hook 场景下，绝不让异常冒泡 */ }
-
-            IntPtr originalFunc = IntPtr.Add(hModule_base, 50073);
-            var original = (GetPID2Delegate)
-                Marshal.GetDelegateForFunctionPointer(originalFunc, typeof(GetPID2Delegate));
-
-            return original(intptr_1, intptr_2, int_0, int_1, int_2, intptr_3);
-        }
 
     }
-
-
-
-
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
-    public struct FileTime
+    #region 辅助工具类 (获取 EBP)
+    public static class StackHelper
     {
-        // Token: 0x0400006D RID: 109
-        public int index;
+        private static readonly byte[] GetEbpCode = { 0x8B, 0xC5, 0xC3 }; // mov eax, ebp; ret
+        private delegate IntPtr GetEbpDelegate();
+        private static GetEbpDelegate _getEbp;
 
-        // Token: 0x0400006E RID: 110
-        [MarshalAs(UnmanagedType.LPWStr)]
-        public string ActConfigKey;
+        static StackHelper()
+        {
+            IntPtr ptr = VirtualAlloc(IntPtr.Zero, (uint)GetEbpCode.Length, 0x1000, 0x40);
+            Marshal.Copy(GetEbpCode, 0, ptr, GetEbpCode.Length);
+            _getEbp = (GetEbpDelegate)Marshal.GetDelegateForFunctionPointer(ptr, typeof(GetEbpDelegate));
+        }
+
+        public static IntPtr GetCurrentEbp() => _getEbp();
+
+        [DllImport("kernel32.dll")]
+        static extern IntPtr VirtualAlloc(IntPtr lp, uint size, uint type, uint protect);
     }
-
-
-    public static class IntPtr3Parser
-    {
-        /// <summary>
-        /// 简化版：先转完整字符串，再解析（.NET 4.8 兼容）
-        /// </summary>
-        public static Tuple<string, List<string>> ParseAsWholeString(IntPtr intptr3, int maxBytes = 96)
-        {
-            if (intptr3 == IntPtr.Zero)
-                throw new ArgumentNullException("intptr3");
-
-            byte[] buffer = new byte[maxBytes];
-            try
-            {
-                // 1. 读取内存字节到数组
-                Marshal.Copy(intptr3, buffer, 0, maxBytes);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"内存读取失败：{ex.Message}");
-                return Tuple.Create(string.Empty, new List<string>());
-            }
-
-            // 2. 直接转完整ASCII字符串（核心优化）
-            string fullStr = Encoding.ASCII.GetString(buffer);
-
-            // 3. 截断：以连续两个空字节为结束标志（更精准）
-            int doubleNullIndex = fullStr.IndexOf("\0\0");
-            string fullPid = doubleNullIndex > 0 ? fullStr.Substring(0, doubleNullIndex) : fullStr;
-
-            // 4. 过滤不可打印字符（保留数字、字母、分隔符 '-' 和 '.'）
-            fullPid = new string(fullPid.Where(c => char.IsLetterOrDigit(c) || c == '-' || c == '.').ToArray());
-
-            // 5. 拆分字符/分隔符（按需）
-            List<string> tokens = new List<string>();
-            foreach (char c in fullPid)
-            {
-                tokens.Add(c.ToString());
-            }
-
-            return Tuple.Create(fullPid, tokens);
-        }
-
-        /// <summary>
-        /// 智能解析 intptr_3 内存（.NET 4.8 兼容）
-        /// </summary>
-        public static Tuple<string, List<string>> ParseWithSeparator(
-            IntPtr intptr3,
-            int maxBytes = 96)
-        {
-            if (intptr3 == IntPtr.Zero)
-                throw new ArgumentNullException("intptr3");
-
-            byte[] buffer = new byte[maxBytes];
-            Marshal.Copy(intptr3, buffer, 0, maxBytes);
-
-            List<char> fullChars = new List<char>();
-            List<string> tokens = new List<string>();
-
-            int zeroCount = 0;
-
-            for (int i = 0; i < buffer.Length; i++)
-            {
-                byte b = buffer[i];
-
-                if (b == 0)
-                {
-                    zeroCount++;
-                    if (zeroCount >= 2)
-                        break;
-                    continue;
-                }
-
-                zeroCount = 0;
-
-                // 只允许可打印 ASCII
-                if (b < 32 || b > 126)
-                    continue;
-
-                char c = (char)b;
-                fullChars.Add(c);
-
-                if (char.IsLetterOrDigit(c))
-                    tokens.Add(c.ToString());
-                else if (c == '-')
-                    tokens.Add("-");
-            }
-
-            return Tuple.Create(new string(fullChars.ToArray()), tokens);
-        }
-
-        /// <summary>
-        /// 打印 PID 的完整业务解析结果
-        /// </summary>
-        public static void PrintFullResult(string fullPid, List<string> tokens)
-        {
-            Console.WriteLine("\n===== intptr_3 解析结果 =====");
-            Console.WriteLine("完整 PID：" + fullPid);
-            Console.WriteLine("字符拆分：" + string.Join(" ", tokens));
-
-            if (string.IsNullOrEmpty(fullPid))
-                return;
-
-            string[] segments = fullPid.Split(new char[] { '-' }, StringSplitOptions.RemoveEmptyEntries);
-
-            if (segments.Length < 4)
-                return;
-
-            Console.WriteLine("\n--- PID 各段含义 ---");
-            Console.WriteLine("1. 版本段：" + segments[0] + " → " + GetSegmentDesc(segments[0], 1));
-            Console.WriteLine("2. 授权段：" + segments[1] + " → " + GetSegmentDesc(segments[1], 2));
-            Console.WriteLine("3. 校验段：" + segments[2] + " → " + GetSegmentDesc(segments[2], 3));
-            Console.WriteLine("4. 区域段：" + segments[3] + " → " + GetSegmentDesc(segments[3], 4));
-        }
-
-        /// <summary>
-        /// PID 段语义解析（C# 7.3 写法）
-        /// </summary>
-        private static string GetSegmentDesc(string segment, int segmentType)
-        {
-            if (segmentType == 1)
-            {
-                switch (segment)
-                {
-                    case "00330":
-                        return "Windows 10/11 专业版（零售）";
-                    case "00340":
-                        return "Windows 10/11 家庭版（零售）";
-                    default:
-                        return "未知版本类型（" + segment + ")";
-                }
-            }
-
-            if (segmentType == 2)
-            {
-                switch (segment)
-                {
-                    case "80000":
-                        return "零售授权（Retail）";
-                    case "00000":
-                        return "批量授权（VL / KMS）";
-                    default:
-                        return "未知授权类型（" + segment + ")";
-                }
-            }
-
-            if (segmentType == 3)
-            {
-                if (segment == "00000")
-                    return "默认校验位（未自定义）";
-                return "自定义校验位（" + segment + ")";
-            }
-
-            if (segmentType == 4)
-            {
-                if (segment.EndsWith("766"))
-                    return "全球通用区域";
-                if (segment.EndsWith("866"))
-                    return "中国区专属版本";
-                return "区域校验码（" + segment + ")";
-            }
-
-            return "未知段";
-        }
-    }
-
-
-
+    #endregion
 }

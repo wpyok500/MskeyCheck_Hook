@@ -3,52 +3,69 @@ using System.Runtime.InteropServices;
 
 namespace 密钥检测关键字符串Hook
 {
-    public unsafe class HookAPI
+    public class HookAPI
     {
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool VirtualProtect(IntPtr lpAddress, uint dwSize, uint flNewProtect, out uint lpflOldProtect);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool WriteProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, byte[] lpBuffer, uint nSize, out uint lpNumberOfBytesWritten);
+
         [DllImport("kernel32.dll")]
-        static extern bool VirtualProtect(IntPtr lpAddress, UIntPtr dwSize, uint flNewProtect, out uint lpflOldProtect);
+        private static extern IntPtr GetCurrentProcess();
 
-        private static byte[] m_OriginalBytes = new byte[5];
-        public static IntPtr TargetAddress { get; set; }
-        public static IntPtr HookAddress { get; set; }
+        private const uint PAGE_EXECUTE_READWRITE = 0x40;
+        private static HookAPI _instance;
+        private static IntPtr _targetAddress;
+        private static IntPtr _hookHandler;
+        private static byte[] _originalBytes = new byte[5];
+        private static byte[] _jumpBytes = new byte[5];
 
-        public HookAPI(IntPtr target, IntPtr hook)
+        public HookAPI(IntPtr targetAddress, IntPtr hookHandler)
         {
-            TargetAddress = target;
-            HookAddress = hook;
-            Marshal.Copy(target, m_OriginalBytes, 0, 5);
+            _targetAddress = targetAddress;
+            _hookHandler = hookHandler;
+            _instance = this;
         }
 
-        public static void Install()
+        public static bool Install()
         {
-            byte[] jmp = CreateJMP(TargetAddress, HookAddress);
-            ProtectionSafeMemoryCopy(TargetAddress, jmp);
-        }
-
-        public static void Unistall()
-        {
-            ProtectionSafeMemoryCopy(TargetAddress, m_OriginalBytes);
-        }
-
-        static void ProtectionSafeMemoryCopy(IntPtr dest, byte[] source)
-        {
-            uint old;
-            // 0x40 = PAGE_EXECUTE_READWRITE
-            if (VirtualProtect(dest, (UIntPtr)source.Length, 0x40, out old))
+            try
             {
-                Marshal.Copy(source, 0, dest, source.Length);
-                VirtualProtect(dest, (UIntPtr)source.Length, old, out old);
+                Marshal.Copy(_targetAddress, _originalBytes, 0, 5);
+                int offset = _hookHandler.ToInt32() - _targetAddress.ToInt32() - 5;
+                _jumpBytes[0] = 0xE9;
+                Buffer.BlockCopy(BitConverter.GetBytes(offset), 0, _jumpBytes, 1, 4);
+
+                if (!VirtualProtect(_targetAddress, 5, PAGE_EXECUTE_READWRITE, out uint oldProtect))
+                    return false;
+
+                WriteProcessMemory(GetCurrentProcess(), _targetAddress, _jumpBytes, 5, out _);
+                VirtualProtect(_targetAddress, 5, oldProtect, out _);
+                return true;
+            }
+            catch
+            {
+                return false;
             }
         }
 
-        static byte[] CreateJMP(IntPtr from, IntPtr to)
+        public static bool Unistall()
         {
-            int relAddr = to.ToInt32() - from.ToInt32() - 5;
-            byte[] jmp = new byte[5];
-            jmp[0] = 0xE9;
-            byte[] relBytes = BitConverter.GetBytes(relAddr);
-            Array.Copy(relBytes, 0, jmp, 1, 4);
-            return jmp;
+            try
+            {
+                if (VirtualProtect(_targetAddress, 5, PAGE_EXECUTE_READWRITE, out uint oldProtect))
+                {
+                    WriteProcessMemory(GetCurrentProcess(), _targetAddress, _originalBytes, 5, out _);
+                    VirtualProtect(_targetAddress, 5, oldProtect, out _);
+                    return true;
+                }
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 }
