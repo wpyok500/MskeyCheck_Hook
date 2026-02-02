@@ -102,53 +102,45 @@ namespace 密钥检测关键字符串Hook
 
             Console.ReadLine();
         }
+
+        private static int _getPid2CallDepth = 0;
+
         private static int MyGetPID2(IntPtr a1, string a2, IntPtr args)
         {
-            //两处HookAPI
-            // Hook.Unistall();
-            HookAPI.Unistall();
+            int depth = ++_getPid2CallDepth;
+            bool isTopCall = (depth == 1);
 
-            int num = 0;
-            checked
+            if (isTopCall)
+                HookAPI.Unistall();   // ✅ 只在最外层卸载
+
+            int num;
+            try
             {
-                if (hModule_base != IntPtr.Zero)
+                WrapperSub551FA9CBDelegate wrapper =
+                    FastCall.StdcallToFastcall<WrapperSub551FA9CBDelegate>(FastCall.InvokePtr);
+
+                num = wrapper(hModule_base + hookFOffset, a1, a2, args);
+
+                Console.WriteLine($"[sub_551FA9CB] depth={depth}, num=0x{num:X8}");
+
+                // ✅ 第二层（真正写数据的那次）
+                if (depth == 2 && a1 != IntPtr.Zero)
                 {
-                    int hr;
-
-                    try
-                    {
-                        // 直接调用“真正的原函数”
-                        var original = Marshal.GetDelegateForFunctionPointer<NativeSub551FA9CB>(hModule_base + hookFOffset);
-
-                        hr = original(a1, a2, args);
-
-                        // ===== 此时 Buffer / a1 已经被 vsnwprintf 写完 =====
-
-                        // 例：从 a1 结构中取 wchar_t*
-                        IntPtr textPtr = Marshal.ReadIntPtr(a1, 0x14); // 偏移你已逆出来
-                        string text = Marshal.PtrToStringUni(textPtr);
-
-                        Console.WriteLine($"[sub_551FA9CB] hr=0x{hr:X8}, text=\"{text}\"");
-                    }
-                    finally
-                    {
-                        HookAPI.Install();
-                    }
-
-                    //WrapperSub551FA9CBDelegate wrapperGetPID2Delegate = FastCall.StdcallToFastcall<WrapperSub551FA9CBDelegate>(FastCall.InvokePtr);
-                    //Console.WriteLine("InvokePtr = 0x" + FastCall.InvokePtr.ToString("X8"));
-                    //// 1. 先调用原生函数，完成v28的内存赋值
-                    //num = wrapperGetPID2Delegate(new IntPtr(hModule_base.ToInt32() + hookFOffset), a1, a2, args);
-
-                    // 3. 再打印num
-                    Console.WriteLine("num:" + num);
-
+                    IntPtr textPtr = Marshal.ReadIntPtr(a1, 0x14);
+                    string text = Marshal.PtrToStringUni(textPtr);
+                    Console.WriteLine($"🔥 SECOND CALL TEXT = \"{text}\"");
                 }
-
-                HookAPI.Install();
-                // Hook.Install();
-                return num;
             }
+            finally
+            {
+                if (isTopCall)
+                    HookAPI.Install();  // ✅ 只在最外层恢复
+
+                _getPid2CallDepth--;
+            }
+
+            return num;
         }
+
     }
 }
