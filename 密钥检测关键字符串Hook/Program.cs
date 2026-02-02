@@ -1,163 +1,139 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace 密钥检测关键字符串Hook
 {
     class Program
     {
-        private static IntPtr _originalFunctionPtr = IntPtr.Zero;
-
-        #region 委托定义 - 核心修改：改为 Cdecl
-        // ✅ 修正：使用 ThisCall。第一个参数对应伪代码的 BYTE *this (ECX)
-        // 其余 4 个参数对应 a2, a3, a4, a5
-        [UnmanagedFunctionPointer(CallingConvention.ThisCall, CharSet = CharSet.Unicode)]
-        private delegate int GetPID2Delegate(
-            IntPtr pThis,    // 对应伪代码 BYTE *this
-            IntPtr a2,       // 对应 unsigned __int16 *a2
-            IntPtr a3,       // 对应 char *a3
-            IntPtr a4,       // 对应 void *a4
-            IntPtr a5        // 对应 const unsigned __int16 **a5
+        /// <summary>
+        /// 核心委托：匹配Sub551FA9CB的参数，显式StdCall，由汇编跳板转__fastcall  //偏移0xA9CB ，基址0x55150000
+        /// </summary>
+        [UnmanagedFunctionPointer(CallingConvention.StdCall, CharSet = CharSet.Unicode, SetLastError = false)]
+        public delegate int Sub551FA9CBDelegate(
+            IntPtr a1,        // ECX → &v28（原生__fastcall，由汇编跳板传入）
+            string a2,        // EDX → 格式化字符串（原生__fastcall，由汇编跳板传入）
+            IntPtr args       // 栈传 → va_list（可变参，直接透传）
         );
 
-        [UnmanagedFunctionPointer(CallingConvention.StdCall, CharSet = CharSet.Unicode)]
-        private delegate int DelegateGetPKeyData(
-            string ProductKey,
-            string PkeyConfigPath,
-            string MPCID,
-            string pwszPKeyAlgorithm,
-            IntPtr OemId,
-            IntPtr OtherId,
-            out string IID,
-            out string Description,
-            out string channel,
-            out string subType,
-            StringBuilder PID);
-        #endregion
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]  //偏移0xA9CB
+        private delegate int WrapperSub551FA9CBDelegate(IntPtr functionPtr, IntPtr a1, string a2, IntPtr args);
 
-        #region WinAPI
-        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-        static extern IntPtr LoadLibrary(string lpFileName);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall,CharSet = CharSet.Unicode,SetLastError = false)]
+        public delegate int Sub551FA7D8Delegate(
+            IntPtr buffer,   // wchar_t* Buffer（输出）
+            int cch,         // 字符数量（不是字节）
+            string format,   // wchar_t* Format
+            IntPtr args      // va_list（原样透传，绝对不要动）
+        );
 
-        [DllImport("kernel32.dll", SetLastError = true)]
-        static extern IntPtr GetProcAddress(IntPtr hModule, string lpProcName);
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]  //偏移0xA7D8 ，基址0x55150000
+        private delegate int WrapperSub551FA7D8Delegate(IntPtr functionPtr, IntPtr buffer, int cch, string format, IntPtr args);
 
         [DllImport("kernel32.dll")]
-        static extern bool FreeLibrary(IntPtr hModule);
-        #endregion
+        internal static extern bool RtlZeroMemory(IntPtr destination, int length);
 
-        private const int HOOK_OFFSET = 0x1694C;
+        // Token: 0x06000094 RID: 148
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        internal static extern bool SetDllDirectory(string lpPathName);
 
-        static void Main()
+        // Token: 0x06000095 RID: 149
+        [DllImport("kernel32", SetLastError = true)]
+        internal static extern IntPtr LoadLibrary(string lpFileName);
+
+        // Token: 0x06000096 RID: 150
+        [DllImport("Kernel32.dll")]
+        internal static extern IntPtr GetProcAddress(IntPtr hModule, string lpProcName);
+
+        // Token: 0x06000097 RID: 151
+        [DllImport("kernel32.dll")]
+        internal static extern bool FreeLibrary(IntPtr hModule);
+        static string string_0 = Environment.CurrentDirectory + "\\";
+        [UnmanagedFunctionPointer(CallingConvention.StdCall, CharSet = CharSet.Unicode)]
+        private delegate int fnPidGenX(string ProuctKey, string PkeyPath, string MPCID, IntPtr UnknownUsage, IntPtr PID2, IntPtr PID3, IntPtr PID4);
+
+        [UnmanagedFunctionPointer(CallingConvention.StdCall, CharSet = CharSet.Unicode)]
+        private delegate int DelegateGetPKeyData(string ProductKey, string PkeyConfigPath, string MPCID, string pwszPKeyAlgorithm, IntPtr OemId, IntPtr OtherId, out string IID, out string Description, out string channel, out string subType, StringBuilder PID);
+
+        private static IntPtr hModule_base = IntPtr.Zero;
+        static void Main(string[] args)
         {
-            if (IntPtr.Size == 8)
-            {
-                Console.WriteLine("❌ 必须在 x86 模式下运行 (Project -> Properties -> Platform Target: x86)");
-                Console.ReadLine();
-                return;
-            }
 
+            string ProductKeys = "VK7JG-NPHTM-C97JM-9MPGT-3V66T";
+            string pkeyconfigxml = System.Environment.CurrentDirectory + "\\pkconfig_winNext.xrm-ms";
+            IntPtr intPtr = Marshal.AllocHGlobal(100);
+            RtlZeroMemory(intPtr, 50);
+            Marshal.WriteByte(intPtr, 0, 50);
+            IntPtr intPtr2 = Marshal.AllocHGlobal(164);
+            RtlZeroMemory(intPtr2, 164);
+            Marshal.WriteByte(intPtr2, 0, 164);
+            IntPtr intPtr3 = Marshal.AllocHGlobal(1272);
+            RtlZeroMemory(intPtr3, 1272);
+            Marshal.WriteByte(intPtr3, 0, 248);
+            Marshal.WriteByte(intPtr3, 1, 4);
             IntPtr hModule = LoadLibrary("ProductKeyUtilities.dll");
-            if (hModule == IntPtr.Zero) return;
+            hModule_base = hModule;
+            Console.WriteLine("模块基址：0x" + hModule.ToString("X8"));
 
-            _originalFunctionPtr = new IntPtr(hModule.ToInt32() + HOOK_OFFSET);
+            //如果要hook该函数  
+            IntPtr HookPtr = FastCall.WrapStdCallInFastCall(Marshal.GetFunctionPointerForDelegate(new Sub551FA7D8Delegate(MyGetPID2)));
+            Int32 a = hModule.ToInt32();
+            Int32 b = hModule.ToInt32() + 0xA7D8;
+            Console.WriteLine("模块基址：0x" + new IntPtr(hModule.ToInt32() + 0xA7D8).ToString("X8"));
+            Console.WriteLine("按任意健开始hook" );
 
-            // 安装 Hook
-            //IntPtr hookHandler = FastCall.WrapStdCallInFastCall(Marshal.GetFunctionPointerForDelegate(new GetPID2Delegate(MyGetPID2)));
-            //new HookAPI(_originalFunctionPtr, hookHandler);
-
-            // 初始化 Hook  ThisCall
-            IntPtr hookHandler = Marshal.GetFunctionPointerForDelegate(new GetPID2Delegate(MyGetPID2));
-            new HookAPI(_originalFunctionPtr, hookHandler);
+            Console.ReadLine();
+            HookAPI HookFunc = new HookAPI(new IntPtr(hModule.ToInt32() + 0xA7D8), HookPtr);
             HookAPI.Install();
 
-            Console.WriteLine("✅ Hook 已安装，正在触发 GetPKeyData...");
-            Console.WriteLine($"按任意健继续，hModule地址为：0x{hModule.ToInt32():X8}"); //0x{_originalFunctionPtr.ToInt32():X8}
-            Console.WriteLine("按任意健继续，_originalFunctionPtr地址为：0x" + _originalFunctionPtr.ToString("X8")); //0x{_originalFunctionPtr.ToInt32():X8}
-            Console.ReadLine();
+            //另外一种hook 写法 HookAPI与Hook类
+            //Hook hook = new Hook(new IntPtr(hModule.ToInt32() + 50073), HookPtr);
+            //Hook.Install();
 
-            // 触发代码
-            IntPtr proc = GetProcAddress(hModule, "GetPKeyData");
-            var getPKeyData = Marshal.GetDelegateForFunctionPointer<DelegateGetPKeyData>(proc);
-            string productKey = "VK7JG-NPHTM-C97JM-9MPGT-3V66T";
-            string configPath = AppDomain.CurrentDomain.BaseDirectory + "pkconfig_winNext.xrm-ms";
+            //获取安装ID
+            IntPtr procAddress1 = GetProcAddress(hModule, "GetPKeyData");
+            DelegateGetPKeyData delegateForFunctionPointer1 = Marshal.GetDelegateForFunctionPointer<DelegateGetPKeyData>(procAddress1);
+            string IID; string Description, channel, subType; StringBuilder PID = null;
+            int num1 = delegateForFunctionPointer1(ProductKeys, pkeyconfigxml, null, null, IntPtr.Zero, IntPtr.Zero, out IID, out Description, out channel, out subType, PID);
+            Console.WriteLine(IID);
 
-            try
-            {
-                getPKeyData(productKey, configPath, null, null, IntPtr.Zero, IntPtr.Zero,
-                            out _, out _, out _, out _, null);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"触发异常: {ex.Message}");
-            }
 
-            //HookAPI.Unistall();
-            FreeLibrary(hModule);
-            Console.ReadLine();
-        }
-
-        #region Hook 回调逻辑
-        private static int MyGetPID2(IntPtr pThis, IntPtr a2, IntPtr a3, IntPtr a4, IntPtr a5)
-        {
-            // 1. 卸载 Hook
             HookAPI.Unistall();
 
-            // 2. 准备读取 v28
-            // 我们需要知道 v28 什么时候被赋值。
-            // 伪代码显示：v28 在 sub_551FABBC 调用后才有值。
-
-            int result = 0;
-            try
-            {
-                // 尝试寻找真正的函数指针（这里可能需要你重新核对该函数在导出表或 IDA 中的开头）
-                var realFunc = Marshal.GetDelegateForFunctionPointer<GetPID2Delegate>(_originalFunctionPtr);
-                result = realFunc(pThis, a2, a3, a4, a5);
-
-                // 3. 在返回后，通过当前的 EBP 偏移读取
-                // 伪代码：v28 在 [ebp-0x20]
-                IntPtr currentEbp = StackHelper.GetCurrentEbp();
-                IntPtr v28Addr = new IntPtr(currentEbp.ToInt32() - 0x20);
-
-                // 检查地址是否有效
-                int v28Ptr = Marshal.ReadInt32(v28Addr);
-                if (v28Ptr != 0)
-                {
-                    Console.WriteLine("v28 捕获成功: " + Marshal.PtrToStringUni((IntPtr)v28Ptr));
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("执行崩溃，可能是地址偏移或调用约定错误: " + ex.Message);
-            }
-            finally
-            {
-                HookAPI.Install();
-            }
-            return result;
+            Console.ReadLine();
         }
-        #endregion
-
-
-    }
-    #region 辅助工具类 (获取 EBP)
-    public static class StackHelper
-    {
-        private static readonly byte[] GetEbpCode = { 0x8B, 0xC5, 0xC3 }; // mov eax, ebp; ret
-        private delegate IntPtr GetEbpDelegate();
-        private static GetEbpDelegate _getEbp;
-
-        static StackHelper()
+        private static int MyGetPID2(IntPtr buffer, int cch, string format, IntPtr args)
         {
-            IntPtr ptr = VirtualAlloc(IntPtr.Zero, (uint)GetEbpCode.Length, 0x1000, 0x40);
-            Marshal.Copy(GetEbpCode, 0, ptr, GetEbpCode.Length);
-            _getEbp = (GetEbpDelegate)Marshal.GetDelegateForFunctionPointer(ptr, typeof(GetEbpDelegate));
+            //两处HookAPI
+            // Hook.Unistall();
+            HookAPI.Unistall();
+
+            int num = 0;
+            checked
+            {
+                if (hModule_base != IntPtr.Zero)
+                {
+                    WrapperSub551FA7D8Delegate wrapperGetPID2Delegate = FastCall.StdcallToFastcall<WrapperSub551FA7D8Delegate>(FastCall.InvokePtr);
+                    // 1. 先调用原生函数，完成v28的内存赋值
+                    num = wrapperGetPID2Delegate(new IntPtr(hModule_base.ToInt32() + 0xA7D8), buffer, cch, format, args);
+                    string text = Marshal.PtrToStringUni(buffer);
+
+                    Console.WriteLine(
+                        $"[sub_551FA7D8] hr=0x{num:X8}, text=\"{text}\""
+                    );
+                    Console.WriteLine($"cch = {cch}");
+                    // 3. 再打印num
+                    Console.WriteLine("num:" + num);
+
+                }
+
+                HookAPI.Install();
+                // Hook.Install();
+                return num;
+            }
         }
-
-        public static IntPtr GetCurrentEbp() => _getEbp();
-
-        [DllImport("kernel32.dll")]
-        static extern IntPtr VirtualAlloc(IntPtr lp, uint size, uint type, uint protect);
     }
-    #endregion
 }
