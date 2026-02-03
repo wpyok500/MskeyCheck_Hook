@@ -46,11 +46,11 @@ namespace 密钥检测关键字符串Hook
         private delegate int DelegateGetPKeyData(string ProductKey, string PkeyConfigPath, string MPCID, string pwszPKeyAlgorithm, IntPtr OemId, IntPtr OtherId, out string IID, out string Description, out string channel, out string subType, StringBuilder PID);
 
         private static IntPtr hModule_base = IntPtr.Zero;
-        private static string ProductKeys = "VK7JG-NPHTM-C97JM-9MPGT-3V66T";
+        private static string ProductKeys = "HJX7N-DFKW9-GK3FQ-MPDY4-3DBP6";
         static void Main(string[] args)
         {
 
-            ActConfigKeyGenerate();
+            ActConfigKeyGenerate(); //payload 算法还有问题 
             //==========================================================
             
             string pkeyconfigxml = System.Environment.CurrentDirectory + "\\pkconfig_winNext.xrm-ms";
@@ -136,68 +136,53 @@ namespace 密钥检测关键字符串Hook
         }
         static void ActConfigKeyGenerate()
         {
-            // 控制台编码设置（避免中文乱码，适配所有系统）
-            Console.OutputEncoding = Encoding.UTF8;
-            Console.InputEncoding = Encoding.UTF8;
-
             try
             {
-                // 步骤1：加载pkeyconfig.xml（程序同目录下）
-                string pkeyConfigPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "pkconfig_winNext.xrm-ms");
-                if (!File.Exists(pkeyConfigPath))
+                Console.OutputEncoding = Encoding.UTF8;
+                Console.InputEncoding = Encoding.UTF8;
+
+                string pkeyPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "pkconfig_winNext.xrm-ms");
+                if (!File.Exists(pkeyPath))
                 {
-                    Console.WriteLine($"❌ 错误：程序同目录下未找到pkeyconfig.xml文件");
-                    Console.WriteLine($"📌 提示：请将pkeyconfig.xml放在可执行文件同一目录下");
+                    Console.WriteLine($"❌ 未找到pkeyconfig.xml，路径：{pkeyPath}");
                     return;
                 }
 
-                // 步骤2：初始化PKeyConfig配置
-                Console.WriteLine("🔍 正在加载并初始化PKeyConfig配置...");
-                string pkeyConfigContent = File.ReadAllText(pkeyConfigPath, Encoding.UTF8);
-                WindowsActivationEngine.Initialize(pkeyConfigContent);
-                Console.WriteLine("✅ PKeyConfig初始化成功！\n");
+                Console.WriteLine("🔍 加载并初始化PKeyConfig...");
+                WindowsActivationEngine.Initialize(File.ReadAllText(pkeyPath, Encoding.UTF8));
+                Console.WriteLine("✅ PKeyConfig初始化成功");
 
-                // 步骤3：测试目标密钥VK7JG（可替换为其他密钥）
-                string testProductKey = ProductKeys;
-                Console.WriteLine($"⚙️  正在解析目标密钥：{testProductKey}");
-                var (editionId, actConfigId, token) = WindowsActivationEngine.AutoGenerateTokenWithDetails(testProductKey);
+                // 测试密钥：与你Hook时一致的HJX7N-DFKW9-GK3FQ-MPDY4-3DBP6
+                string testKey = ProductKeys;
+                Console.WriteLine($"\n⚙️  解析目标密钥：{testKey}");
+                var (edition, guid, token) = WindowsActivationEngine.AutoGenerateTokenWithDetails(testKey);
 
-                // 步骤4：打印结果
                 Console.WriteLine("\n=============================================");
-                Console.WriteLine($"🎯 匹配系统版本：{editionId}");
-                Console.WriteLine($"🆔 匹配ActConfigId：{actConfigId}");
-                Console.WriteLine($"🔑 生成msft2009 Token：");
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine(token);
-                Console.ResetColor();
+                Console.WriteLine($"🎯 匹配EditionId：{edition}");
+                Console.WriteLine($"🆔 匹配ActConfigId：{guid}");
+                Console.WriteLine($"🔑 生成msft2009 Token：\n{token}");
                 Console.WriteLine("=============================================\n");
 
-                // 步骤5：验证是否与Hook结果一致
-                string targetToken = "msft2009:4de7cb65-cdf1-4de9-8ae8-e3cce27b9f2c&AAAAAHYGUKX33BIDnw==";
+                // 目标Token：你Hook地址0x7BBCC399得到的实际结果
+                string targetToken = "msft2009:4de7cb65-cdf1-4de9-8ae8-e3cce27b9f2c&bFnJEXYG8EMpD35+/A==";
                 if (token == targetToken)
-                {
-                    Console.ForegroundColor = ConsoleColor.Green;
-                    Console.WriteLine("✅ 成功！生成的Token与SPP Hook结果完全一致！");
-                    Console.ResetColor();
-                }
+                    Console.WriteLine("✅ 终极成功！生成的Token与Hook结果（0x7BBCC399）100%完全一致！");
                 else
                 {
-                    Console.ForegroundColor = ConsoleColor.Yellow;
-                    Console.WriteLine("⚠️  提示：Token与目标Hook结果不一致，请检查PKeyConfig或密钥");
-                    Console.ResetColor();
+                    Console.WriteLine("❌ 验证失败：Token与目标不一致");
+                    Console.WriteLine($"🔍 目标Hook Token：{targetToken}");
                 }
+
             }
             catch (Exception ex)
             {
-                // 异常处理：打印详细错误信息
                 Console.WriteLine($"\n❌ 执行失败：{ex.Message}");
                 if (ex.InnerException != null)
                     Console.WriteLine($"🔍 内部错误：{ex.InnerException.Message}");
             }
             finally
             {
-                // 等待用户退出
-                Console.WriteLine("\n按任意键退出程序...");
+                Console.WriteLine("\n按任意键退出...");
                 Console.ReadKey();
             }
         }
