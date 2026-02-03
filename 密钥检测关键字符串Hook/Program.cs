@@ -1,7 +1,10 @@
-﻿using System;
+﻿
+using SppTokenGenerator;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.NetworkInformation;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -43,12 +46,13 @@ namespace 密钥检测关键字符串Hook
         private delegate int DelegateGetPKeyData(string ProductKey, string PkeyConfigPath, string MPCID, string pwszPKeyAlgorithm, IntPtr OemId, IntPtr OtherId, out string IID, out string Description, out string channel, out string subType, StringBuilder PID);
 
         private static IntPtr hModule_base = IntPtr.Zero;
+        private static string ProductKeys = "VK7JG-NPHTM-C97JM-9MPGT-3V66T";
         static void Main(string[] args)
         {
 
             ActConfigKeyGenerate();
             //==========================================================
-            string ProductKeys = "VK7JG-NPHTM-C97JM-9MPGT-3V66T";
+            
             string pkeyconfigxml = System.Environment.CurrentDirectory + "\\pkconfig_winNext.xrm-ms";
             IntPtr intPtr = Marshal.AllocHGlobal(100);
             RtlZeroMemory(intPtr, 50);
@@ -132,57 +136,68 @@ namespace 密钥检测关键字符串Hook
         }
         static void ActConfigKeyGenerate()
         {
-            Console.WriteLine("===== Windows Activation Token 生成工具 =====");
-            Console.WriteLine("============================================\n");
+            // 控制台编码设置（避免中文乱码，适配所有系统）
+            Console.OutputEncoding = Encoding.UTF8;
+            Console.InputEncoding = Encoding.UTF8;
 
             try
             {
-                // 1. 配置文件路径（请根据实际路径修改）
-                string pkeyConfigPath = "pkconfig_winNext.xrm-ms";
+                // 步骤1：加载pkeyconfig.xml（程序同目录下）
+                string pkeyConfigPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "pkconfig_winNext.xrm-ms");
                 if (!File.Exists(pkeyConfigPath))
                 {
-                    Console.WriteLine($"错误：未找到 pkeyconfig.xrm-ms 文件，路径：{pkeyConfigPath}");
+                    Console.WriteLine($"❌ 错误：程序同目录下未找到pkeyconfig.xml文件");
+                    Console.WriteLine($"📌 提示：请将pkeyconfig.xml放在可执行文件同一目录下");
                     return;
                 }
 
-                // 2. 加载并初始化PKeyConfig
-                string pkeyConfigXml = File.ReadAllText(pkeyConfigPath);
-                Console.WriteLine("正在初始化 PKeyConfig 配置...");
-                WindowsActivationEngine.Initialize(pkeyConfigXml);
-                Console.WriteLine("PKeyConfig 初始化成功！\n");
+                // 步骤2：初始化PKeyConfig配置
+                Console.WriteLine("🔍 正在加载并初始化PKeyConfig配置...");
+                string pkeyConfigContent = File.ReadAllText(pkeyConfigPath, Encoding.UTF8);
+                WindowsActivationEngine.Initialize(pkeyConfigContent);
+                Console.WriteLine("✅ PKeyConfig初始化成功！\n");
 
-                // 3. 输入产品密钥
-                //Console.Write("请输入 25位产品密钥（含连字符）：");
-                //string productKey = Console.ReadLine()?.Trim();
-                string productKey = "VK7JG-NPHTM-C97JM-9MPGT-3V66T";
-                if (string.IsNullOrEmpty(productKey))
-                {
-                    Console.WriteLine("错误：产品密钥不能为空");
-                    return;
-                }
+                // 步骤3：测试目标密钥VK7JG（可替换为其他密钥）
+                string testProductKey = ProductKeys;
+                Console.WriteLine($"⚙️  正在解析目标密钥：{testProductKey}");
+                var (editionId, actConfigId, token) = WindowsActivationEngine.AutoGenerateTokenWithDetails(testProductKey);
 
-                // 4. 自动匹配并生成Token（含完整信息）
-                Console.WriteLine("\n正在解析密钥并自动匹配版本...");
-                var (targetEdition, actConfigGuid, token) = WindowsActivationEngine.AutoGenerateTokenWithDetails(productKey);
-
-                // 5. 打印完整信息（高亮关键内容）
+                // 步骤4：打印结果
                 Console.WriteLine("\n=============================================");
-                Console.WriteLine("生成结果如下：");
-                Console.WriteLine($"产品密钥：{productKey}");
-                Console.WriteLine($"自动匹配的 EditionId：{targetEdition}");
-                Console.WriteLine($"对应的 ActConfigId（GUID）：{actConfigGuid}");
-                Console.WriteLine($"生成的 msft2009 Token：");
-                Console.WriteLine($"{token}");
-                Console.WriteLine("=============================================");
+                Console.WriteLine($"🎯 匹配系统版本：{editionId}");
+                Console.WriteLine($"🆔 匹配ActConfigId：{actConfigId}");
+                Console.WriteLine($"🔑 生成msft2009 Token：");
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine(token);
+                Console.ResetColor();
+                Console.WriteLine("=============================================\n");
+
+                // 步骤5：验证是否与Hook结果一致
+                string targetToken = "msft2009:4de7cb65-cdf1-4de9-8ae8-e3cce27b9f2c&AAAAAHYGUKX33BIDnw==";
+                if (token == targetToken)
+                {
+                    Console.ForegroundColor = ConsoleColor.Green;
+                    Console.WriteLine("✅ 成功！生成的Token与SPP Hook结果完全一致！");
+                    Console.ResetColor();
+                }
+                else
+                {
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.WriteLine("⚠️  提示：Token与目标Hook结果不一致，请检查PKeyConfig或密钥");
+                    Console.ResetColor();
+                }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"\n错误：{ex.Message}");
+                // 异常处理：打印详细错误信息
+                Console.WriteLine($"\n❌ 执行失败：{ex.Message}");
+                if (ex.InnerException != null)
+                    Console.WriteLine($"🔍 内部错误：{ex.InnerException.Message}");
             }
             finally
             {
-                WindowsActivationEngine.ClearCache();
-                Console.WriteLine("\n按任意键退出...");
+                // 等待用户退出
+                Console.WriteLine("\n按任意键退出程序...");
                 Console.ReadKey();
             }
         }
