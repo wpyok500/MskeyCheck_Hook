@@ -27,6 +27,15 @@ namespace 密钥检测关键字符串Hook
         [UnmanagedFunctionPointer(CallingConvention.FastCall, CharSet = CharSet.Unicode)]
         private delegate int NativeSub551FA9CB(IntPtr a1,string format,IntPtr args);
 
+        [UnmanagedFunctionPointer(CallingConvention.StdCall, CharSet = CharSet.Unicode, SetLastError = false)]
+        public delegate int Sub7BBCC0ECDelegate(
+            IntPtr a1,        // ECX：对象指针
+            int a2,           // EDX
+            int a3,           // stack
+            IntPtr buffer     // stack：wchar_t*
+        );
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        private delegate int WrapperSub7BBCC0ECDelegate(IntPtr functionPtr, IntPtr a1, int a2, int a3, IntPtr buffer);
 
         [DllImport("kernel32.dll")]
         internal static extern bool RtlZeroMemory(IntPtr destination, int length);
@@ -54,7 +63,7 @@ namespace 密钥检测关键字符串Hook
         private delegate int DelegateGetPKeyData(string ProductKey, string PkeyConfigPath, string MPCID, string pwszPKeyAlgorithm, IntPtr OemId, IntPtr OtherId, out string IID, out string Description, out string channel, out string subType, StringBuilder PID);
 
         private static IntPtr hModule_base = IntPtr.Zero;
-        private static Int32 hookFOffset = 0xA9CB;   
+        private static Int32 hookFOffset = 0xC0EC;   
 
         static void Main(string[] args)
         {
@@ -74,14 +83,16 @@ namespace 密钥检测关键字符串Hook
             IntPtr hModule = LoadLibrary("ProductKeyUtilities.dll");
             hModule_base = hModule;
             Console.WriteLine("模块基址：0x" + hModule.ToString("X8"));
+            Console.WriteLine("研究hook函数地址1：0x" + IntPtr.Add(hModule, 0xA9CB).ToString("X8"));
+            Console.WriteLine("研究hook函数地址2：0x" + IntPtr.Add(hModule, 0xC0EC).ToString("X8"));//0xC0EC
 
-            //如果要hook该函数  
-            IntPtr HookPtr = FastCall.WrapStdCallInFastCall(Marshal.GetFunctionPointerForDelegate(new Sub551FA9CBDelegate(MyGetPID2)));
             Int32 a = hModule.ToInt32();
             Int32 b = hModule.ToInt32() + hookFOffset;
-            Console.WriteLine("模块基址：0x" + new IntPtr(hModule.ToInt32() + hookFOffset).ToString("X8"));
-            Console.WriteLine("按任意健开始hook" );
+            Console.WriteLine("hook函数偏移基址：0x" + new IntPtr(hModule.ToInt32() + hookFOffset).ToString("X8"));
+            Console.WriteLine("按任意健开始hook");
 
+            //如果要hook该函数  
+            IntPtr HookPtr = FastCall.WrapStdCallInFastCall(Marshal.GetFunctionPointerForDelegate(new Sub7BBCC0ECDelegate(MyGetPID2)));
             Console.ReadLine();
             HookAPI HookFunc = new HookAPI(new IntPtr(hModule.ToInt32() + hookFOffset), HookPtr);
             HookAPI.Install();
@@ -105,7 +116,7 @@ namespace 密钥检测关键字符串Hook
 
         private static int _getPid2CallDepth = 0;
 
-        private static int MyGetPID2(IntPtr a1, string a2, IntPtr args)
+        private static int MyGetPID2(IntPtr a1, int a2, int a3, IntPtr buffer)
         {
             int depth = ++_getPid2CallDepth;
             bool isTopCall = (depth == 1);
@@ -116,10 +127,10 @@ namespace 密钥检测关键字符串Hook
             int num;
             try
             {
-                WrapperSub551FA9CBDelegate wrapper =
-                    FastCall.StdcallToFastcall<WrapperSub551FA9CBDelegate>(FastCall.InvokePtr);
+                WrapperSub7BBCC0ECDelegate wrapper =
+                    FastCall.StdcallToFastcall<WrapperSub7BBCC0ECDelegate>(FastCall.InvokePtr);
 
-                num = wrapper(hModule_base + hookFOffset, a1, a2, args);
+                num = wrapper(hModule_base + hookFOffset, a1, a2, a3, buffer);
 
                 Console.WriteLine($"[sub_551FA9CB] depth={depth}, num=0x{num:X8}");
 
