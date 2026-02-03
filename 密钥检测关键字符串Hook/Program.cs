@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
@@ -44,6 +46,8 @@ namespace 密钥检测关键字符串Hook
         static void Main(string[] args)
         {
 
+            ActConfigKeyGenerate();
+            //==========================================================
             string ProductKeys = "VK7JG-NPHTM-C97JM-9MPGT-3V66T";
             string pkeyconfigxml = System.Environment.CurrentDirectory + "\\pkconfig_winNext.xrm-ms";
             IntPtr intPtr = Marshal.AllocHGlobal(100);
@@ -124,7 +128,65 @@ namespace 密钥检测关键字符串Hook
                 // Hook.Install();
                 return num;
             }
+
         }
+        static void ActConfigKeyGenerate()
+        {
+            Console.WriteLine("===== Windows Activation Token 生成工具 =====");
+            Console.WriteLine("============================================\n");
+
+            try
+            {
+                // 1. 配置文件路径（请根据实际路径修改）
+                string pkeyConfigPath = "pkconfig_winNext.xrm-ms";
+                if (!File.Exists(pkeyConfigPath))
+                {
+                    Console.WriteLine($"错误：未找到 pkeyconfig.xrm-ms 文件，路径：{pkeyConfigPath}");
+                    return;
+                }
+
+                // 2. 加载并初始化PKeyConfig
+                string pkeyConfigXml = File.ReadAllText(pkeyConfigPath);
+                Console.WriteLine("正在初始化 PKeyConfig 配置...");
+                WindowsActivationEngine.Initialize(pkeyConfigXml);
+                Console.WriteLine("PKeyConfig 初始化成功！\n");
+
+                // 3. 输入产品密钥
+                //Console.Write("请输入 25位产品密钥（含连字符）：");
+                //string productKey = Console.ReadLine()?.Trim();
+                string productKey = "VK7JG-NPHTM-C97JM-9MPGT-3V66T";
+                if (string.IsNullOrEmpty(productKey))
+                {
+                    Console.WriteLine("错误：产品密钥不能为空");
+                    return;
+                }
+
+                // 4. 自动匹配并生成Token（含完整信息）
+                Console.WriteLine("\n正在解析密钥并自动匹配版本...");
+                var (targetEdition, actConfigGuid, token) = WindowsActivationEngine.AutoGenerateTokenWithDetails(productKey);
+
+                // 5. 打印完整信息（高亮关键内容）
+                Console.WriteLine("\n=============================================");
+                Console.WriteLine("生成结果如下：");
+                Console.WriteLine($"产品密钥：{productKey}");
+                Console.WriteLine($"自动匹配的 EditionId：{targetEdition}");
+                Console.WriteLine($"对应的 ActConfigId（GUID）：{actConfigGuid}");
+                Console.WriteLine($"生成的 msft2009 Token：");
+                Console.WriteLine($"{token}");
+                Console.WriteLine("=============================================");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"\n错误：{ex.Message}");
+            }
+            finally
+            {
+                WindowsActivationEngine.ClearCache();
+                Console.WriteLine("\n按任意键退出...");
+                Console.ReadKey();
+            }
+        }
+
     }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto, Pack = 4)]
