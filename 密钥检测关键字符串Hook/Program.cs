@@ -18,6 +18,7 @@ namespace 密钥检测关键字符串Hook
         private const string TARGET_MATCH_STR = "msft2009";          // 目标匹配字符串
         // 测试用产品密钥和配置文件路径（替换为你的实际值）
         private const string TEST_PRODUCT_KEY = "VK7JG-NPHTM-C97JM-9MPGT-3V66T";
+        string pkeyconfigxml = System.Environment.CurrentDirectory + "\\pkconfig_winNext.xrm-ms";
         #endregion
 
         #region 1. 你定义的GetPKeyData委托（原封不动复用）
