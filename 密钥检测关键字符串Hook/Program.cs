@@ -117,110 +117,46 @@ namespace 密钥检测关键字符串Hook
         #region Hook拦截函数（匹配2个int参数，无修改）
         private static int HookedGetPKeyData_981(int a1, int a2)
         {
-            IntPtr pA1 = (IntPtr)a1;
-            IntPtr pA2 = (IntPtr)a2;
+            int currentCount = Interlocked.Increment(ref _hookCallCount);
+            Console.WriteLine($"[Hook统计] 第{currentCount}次触发sub_7BBCA981，a1(ECX)={a1}（0x{a1.ToString("X8")}），a2(EDX)={a2}（0x{a2.ToString("X8")}）");
 
-            // 1️⃣ 直接检测 a1
-            if (TryPrintIfMatch(pA1, "a1 (ECX)"))
-                return _hookTargetFunc.OriginalFunction(a1, a2);
+            //if (currentCount == VALID_HOOK_CALL_COUNT)
+            //{
 
-            // 2️⃣ 检测 a2
-            if (TryPrintIfMatch(pA2, "a2 (EDX)"))
-                return _hookTargetFunc.OriginalFunction(a1, a2);
+            //}
+            Console.WriteLine("=====================================================");
+            Console.WriteLine($"[🔥 有效调用] 第{count++}次触发sub_7BBCA981，开始提取数据！");
 
-            // 3️⃣ 检测 a1 + 0x14
-            if (pA1 != IntPtr.Zero)
+            IntPtr a1Ptr = (IntPtr)a1;
+            IntPtr a2Ptr = (IntPtr)a2;
+
+            ExtractUnicodeData(a1Ptr, "a1(ECX)指向的密钥数据");
+            ExtractUnicodeData(a2Ptr, "a2(EDX)指向的辅助数据");
+
+            if (a1Ptr != IntPtr.Zero)
             {
-                try
-                {
-                    IntPtr pExt = Marshal.ReadIntPtr(pA1, 0x14);
-                    if (TryPrintIfMatch(pExt, "a1 + 0x14"))
-                        return _hookTargetFunc.OriginalFunction(a1, a2);
-                }
-                catch { }
+                IntPtr a1Offset14 = Marshal.ReadIntPtr(a1Ptr, 0x14);
+                ExtractUnicodeData(a1Offset14, "a1+0x14偏移指向的扩展数据");
             }
 
-            // 4️⃣ 什么都没命中 → 静默放行
+            bool a1Contain = IsContainTargetStr(a1Ptr, TARGET_MATCH_STR);
+            bool a2Contain = IsContainTargetStr(a2Ptr, TARGET_MATCH_STR);
+            if (a1Contain)
+            {
+                Console.WriteLine($"[✅ 匹配成功] a1(ECX)数据包含目标字符串：{TARGET_MATCH_STR}");
+            }
+            else if (a2Contain)
+            {
+                Console.WriteLine($"[✅ 匹配成功] a2(EDX)数据包含目标字符串：{TARGET_MATCH_STR}");
+            }
+            else
+            {
+                Console.WriteLine($"[⚠️  匹配提示] a1/a2未检测到目标字符串：{TARGET_MATCH_STR}");
+            }
+            Console.WriteLine("=====================================================\n");
+
             return _hookTargetFunc.OriginalFunction(a1, a2);
         }
-        private static bool TryPrintIfMatch(IntPtr ptr, string tag)
-        {
-            if (ptr == IntPtr.Zero)
-                return false;
-
-            // 地址基本合法性校验（32位）
-            long addr = ptr.ToInt64();
-            if (addr < 0x10000 || addr > 0x7FFFFFFF)
-                return false;
-
-            // 内存可读性探测
-            if (IsBadReadPtr(ptr, 2))
-                return false;
-
-            string str;
-            try
-            {
-                str = Marshal.PtrToStringUni(ptr, 512);
-            }
-            catch
-            {
-                return false;
-            }
-
-            if (string.IsNullOrEmpty(str))
-                return false;
-
-            foreach (var key in TARGET_KEYS)
-            {
-                if (str.IndexOf(key, StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    Console.WriteLine("======================================");
-                    Console.WriteLine($"🔥 命中关键字符串：{key}");
-                    Console.WriteLine($"📍 来源：{tag}");
-                    Console.WriteLine($"📌 地址：0x{ptr.ToString("X8")}");
-                    string clean = TrimToReadableUnicode(str);
-                    Console.WriteLine($"🧾 内容：{clean}");
-                    Console.WriteLine($"📏 字符串长度：{clean.Length}");
-                    Console.WriteLine("======================================\n");
-                    return true;
-                }
-            }
-
-            return false;
-        }
-        private static readonly string[] TARGET_KEYS =
-        {
-            "msft2009",
-            "msft2005"
-        };
-        private static string TrimToReadableUnicode(string input)
-        {
-            if (string.IsNullOrEmpty(input))
-                return input;
-
-            var sb = new StringBuilder(input.Length);
-
-            foreach (char c in input)
-            {
-                // 合法可读字符范围
-                if (c == '\0')
-                    break;
-
-                if (c >= 0x20 && c <= 0x7E ||   // ASCII
-                    c >= 0x4E00 && c <= 0x9FFF) // CJK
-                {
-                    sb.Append(c);
-                }
-                else
-                {
-                    break; // 一旦进入二进制，直接截断
-                }
-            }
-
-            return sb.ToString();
-        }
-
-
         #endregion
 
         #region GetPKeyData调用逻辑（无修改，已修复PID=null问题）
@@ -347,7 +283,11 @@ namespace 密钥检测关键字符串Hook
                 return false;
             }
         }
-        
+        private static readonly string[] TARGET_KEYS =
+        {
+            "msft2009",
+            "msft2005"
+        };
 
 
         private static void FreeNativeOutString(string str)
