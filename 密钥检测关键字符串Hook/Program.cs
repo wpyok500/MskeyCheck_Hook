@@ -73,9 +73,14 @@ namespace 密钥检测关键字符串Hook
             //四处HookAPI
 
             //如果要hook该函数  
-            IntPtr HookPtr = FastCall.WrapStdCallInFastCall(Marshal.GetFunctionPointerForDelegate(new GetPID2Delegate(MyGetPID2)));
             Int32 a = hModule.ToInt32();
             IntPtr b = new IntPtr(hModule.ToInt32() + 50073);
+            Console.WriteLine("dll基址：0x" + hModule.ToString("X8"));
+            Console.WriteLine("研究hook函数地址1：0x" + IntPtr.Add(hModule, 0xA9CB).ToString("X8"));
+            Console.WriteLine("研究hook函数地址2：0x" + IntPtr.Add(hModule, 0xB0EC).ToString("X8"));//0xB0EC
+            Console.WriteLine("按任意健开始hook，hook函数地址：0x" + b.ToString("X8"));
+            Console.ReadLine();
+            IntPtr HookPtr = FastCall.WrapStdCallInFastCall(Marshal.GetFunctionPointerForDelegate(new GetPID2Delegate(MyGetPID2)));
             HookAPI HookFunc = new HookAPI(new IntPtr(hModule.ToInt32() + 50073), HookPtr);
             HookAPI.Install();
 
