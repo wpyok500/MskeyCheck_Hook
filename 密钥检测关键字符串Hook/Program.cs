@@ -88,14 +88,14 @@ namespace 密钥检测关键字符串Hook
 
             Int32 a = hModule.ToInt32();
             Int32 b = hModule.ToInt32() + hookFOffset;
-            Console.WriteLine("hook函数偏移基址：0x" + new IntPtr(hModule.ToInt32() + hookFOffset).ToString("X8"));
+            Console.WriteLine("hook函数偏移基址：0x" + new IntPtr(hModule_base.ToInt32() + hookFOffset).ToString("X8"));
             Console.WriteLine("按任意健开始hook");
-
-            //如果要hook该函数  
-            IntPtr HookPtr = FastCall.WrapStdCallInFastCall(Marshal.GetFunctionPointerForDelegate(new Sub7BBCC0ECDelegate(MyGetPID2)));
             Console.ReadLine();
-            HookAPI HookFunc = new HookAPI(new IntPtr(hModule.ToInt32() + hookFOffset), HookPtr);
-            HookAPI.Install();
+
+            ////如果要hook该函数  
+            //IntPtr HookPtr = FastCall.WrapStdCallInFastCall(Marshal.GetFunctionPointerForDelegate(new Sub7BBCC0ECDelegate(MyGetPID2)));
+            //HookAPI HookFunc = new HookAPI(new IntPtr(hModule_base.ToInt32() + hookFOffset), HookPtr);
+            //HookAPI.Install();
 
             //另外一种hook 写法 HookAPI与Hook类
             //Hook hook = new Hook(new IntPtr(hModule.ToInt32() + 50073), HookPtr);
@@ -109,7 +109,15 @@ namespace 密钥检测关键字符串Hook
             Console.WriteLine(IID);
 
 
-            HookAPI.Unistall();
+            //HookAPI.Unistall();
+
+            // 释放非托管内存
+            Marshal.FreeHGlobal(intPtr);
+            Marshal.FreeHGlobal(intPtr2);
+            Marshal.FreeHGlobal(intPtr3);
+            // 释放非托管模块
+            if (hModule != IntPtr.Zero) FreeLibrary(hModule);
+            hModule_base = IntPtr.Zero;
 
             Console.ReadLine();
         }
@@ -132,7 +140,7 @@ namespace 密钥检测关键字符串Hook
 
                 num = wrapper(hModule_base + hookFOffset, a1, a2, a3, buffer);
 
-                Console.WriteLine($"[sub_551FA9CB] depth={depth}, num=0x{num:X8}");
+                Console.WriteLine($"[sub_7BBCC0EC] depth={depth}, num=0x{num:X8}");
 
                 // ✅ 第二层（真正写数据的那次）
                 if (depth == 2 && a1 != IntPtr.Zero)
