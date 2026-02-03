@@ -157,15 +157,8 @@ namespace 密钥检测关键字符串Hook
             if (IsBadReadPtr(ptr, 2))
                 return false;
 
-            string str;
-            try
-            {
-                str = Marshal.PtrToStringUni(ptr, 512);
-            }
-            catch
-            {
+            if (!TryReadUnicodeString(ptr, 256, out var str))
                 return false;
-            }
 
             if (string.IsNullOrEmpty(str))
                 return false;
@@ -218,6 +211,52 @@ namespace 密钥检测关键字符串Hook
             }
 
             return sb.ToString();
+        }
+        private static bool TryReadUnicodeString(
+    IntPtr ptr,
+    int maxChars,
+    out string result)
+        {
+            result = null;
+
+            if (ptr == IntPtr.Zero)
+                return false;
+
+            long addr = ptr.ToInt64();
+            if (addr < 0x10000 || addr > 0x7FFFFFFF)
+                return false;
+
+            var sb = new StringBuilder();
+
+            for (int i = 0; i < maxChars; i++)
+            {
+                IntPtr cur = IntPtr.Add(ptr, i * 2);
+
+                // 每次只探测 2 字节（一个 WCHAR）
+                if (IsBadReadPtr(cur, 2))
+                    break;
+
+                char c;
+                try
+                {
+                    c = (char)Marshal.ReadInt16(cur);
+                }
+                catch
+                {
+                    break;
+                }
+
+                if (c == '\0')
+                    break;
+
+                sb.Append(c);
+            }
+
+            if (sb.Length == 0)
+                return false;
+
+            result = sb.ToString();
+            return true;
         }
 
 
