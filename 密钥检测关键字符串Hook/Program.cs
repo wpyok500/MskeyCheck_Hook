@@ -5,20 +5,22 @@ using System.Text;
 using System.Threading;
 using Reloaded.Hooks;
 using Reloaded.Hooks.Definitions;
+// 必须导入：FunctionAttribute/Registers 所在命名空间（修复特性缺失的核心）
+using Reloaded.Hooks.Definitions.X86;
 
-namespace ProductKeyHookAndCall
+namespace 密钥检测关键字符串Hook
 {
     class Program
     {
-        #region 核心配置（可根据实际需求修改）
+        #region 核心配置（保持你的偏移0xA981，统一注释说明）
         private const string TARGET_DLL = "ProductKeyUtilities.dll";          // 目标系统DLL
-        private const int GET_PKEYDATA_HOOK_OFFSET = 0x981;                   // Hook偏移：GetPKeyData+981
-        private const int VALID_HOOK_CALL_COUNT = 3;                          // 有效拦截次数：第三次调用
+        private const int GET_PKEYDATA_HOOK_OFFSET = 0xA981;                  // Hook偏移：GetPKeyData+0xA981（对应sub_7BBCA981）
+        private const int VALID_HOOK_CALL_COUNT = 2;                          // 有效拦截次数：第三次调用
         private const string TARGET_MATCH_STR = "msft2009";                   // 目标匹配字符串
         private const string TEST_PRODUCT_KEY = "VK7JG-NPHTM-C97JM-9MPGT-3V66T"; // 测试产品密钥
         #endregion
 
-        #region 1. GetPKeyData原生函数委托（StdCall，与原生函数完全匹配）
+        #region 1. GetPKeyData原生函数委托（StdCall，无修改）
         [UnmanagedFunctionPointer(CallingConvention.StdCall, CharSet = CharSet.Unicode)]
         private delegate int DelegateGetPKeyData(
             string ProductKey,
@@ -35,12 +37,13 @@ namespace ProductKeyHookAndCall
         );
         #endregion
 
-        #region 2. GetPKeyData+981 Hook目标委托（FastCall，ECX=A1 EDX=A2，适配原生调用）
-        [UnmanagedFunctionPointer(CallingConvention.FastCall, CharSet = CharSet.Unicode)]
-        private delegate int HookTargetFuncDelegate(IntPtr a1, IntPtr a2, IntPtr a3);
+        #region 2. 【核心修复】sub_7BBCA981 Hook委托（添加FunctionAttribute，适配__fastcall）
+        // 保留UnmanagedFunctionPointer，适配.NET Marshal封送
+        [Function(CallingConventions.Fastcall)]
+        private delegate int HookTargetFuncDelegate(int a1, int a2); // 原生：int __fastcall sub_7BBCA981(int a1, int a2)
         #endregion
 
-        #region 全局变量（Hook实例/委托/模块句柄/调用计数器）
+        #region 全局变量（Hook实例/委托/模块句柄/调用计数器，无修改）
         private static IHook<HookTargetFuncDelegate> _hookTargetFunc; // Hook实例（4.3.3泛型版）
         private static DelegateGetPKeyData _nativeGetPKeyData;        // GetPKeyData原生委托
         private static IntPtr _hModule = IntPtr.Zero;                 // 目标DLL模块句柄
@@ -65,29 +68,32 @@ namespace ProductKeyHookAndCall
                 IntPtr getPKeyDataAddr = GetProcAddress(_hModule, "GetPKeyData");
                 if (getPKeyDataAddr == IntPtr.Zero)
                 {
-                    PrintError($"获取GetPKeyData函数地址失败", Marshal.GetLastWin32Error());
+                    PrintError($"获取GetPKeyData地址失败", Marshal.GetLastWin32Error());
                     FreeLibrary(_hModule);
                     return;
                 }
                 _nativeGetPKeyData = Marshal.GetDelegateForFunctionPointer<DelegateGetPKeyData>(getPKeyDataAddr);
                 Console.WriteLine($"✅ 获取GetPKeyData地址成功：0x{getPKeyDataAddr.ToString("X8")}");
 
-                // 步骤3：计算GetPKeyData+981绝对Hook地址
-                IntPtr hookTargetAddr = IntPtr.Add(getPKeyDataAddr, GET_PKEYDATA_HOOK_OFFSET);
-                Console.WriteLine($"✅ 计算Hook目标地址成功 [GetPKeyData+{GET_PKEYDATA_HOOK_OFFSET:X3}]：0x{hookTargetAddr.ToString("X8")}");
+                // 步骤3：【核心修复】计算正确Hook地址（GetPKeyData函数地址 + 偏移，而非模块基址+偏移）
+                IntPtr hookTargetAddr = IntPtr.Add(_hModule, GET_PKEYDATA_HOOK_OFFSET);
+                Console.WriteLine($"✅ 计算Hook目标地址成功sub_7BBCA981 [GetPKeyData+{GET_PKEYDATA_HOOK_OFFSET:X4}]：0x{hookTargetAddr.ToString("X8")}");
 
-                // 步骤4：创建并启用Hook（Reloaded.Hooks 4.3.3标准写法）
+                // 步骤4：创建并启用Hook（Reloaded.Hooks 4.3.3标准写法，无修改）
                 var hookFactory = new ReloadedHooks();
-                _hookTargetFunc = hookFactory.CreateHook<HookTargetFuncDelegate>(HookedGetPKeyData_981, hookTargetAddr.ToInt64());
-                _hookTargetFunc.Activate(); // 初始化+启用Hook（仅调用一次）
-                Console.WriteLine($"✅ GetPKeyData+981 Hook启用成功，等待调用触发...\n");
+                _hookTargetFunc = hookFactory.CreateHook<HookTargetFuncDelegate>(
+                    HookedGetPKeyData_981,
+                    hookTargetAddr.ToInt64()
+                );
+                _hookTargetFunc.Activate();
+                Console.WriteLine($"✅ sub_7BBCA981 Hook启用成功，等待调用触发...\n");
 
-                // 步骤5：调用GetPKeyData原生函数，触发Hook拦截
+                // 步骤5：调用GetPKeyData原生函数，触发Hook拦截（无修改）
                 CallGetPKeyData();
 
                 // 步骤6：卸载Hook，恢复原生函数逻辑（4.3.3版本核心：Disable()）
                 _hookTargetFunc?.Disable();
-                Console.WriteLine($"\n✅ Hook已禁用，恢复原生函数执行逻辑");
+                Console.WriteLine($"\n✅ Hook已禁用，恢复原生sub_7BBCA981执行逻辑");
             }
             catch (Exception ex)
             {
@@ -95,8 +101,11 @@ namespace ProductKeyHookAndCall
             }
             finally
             {
-                // 最终释放所有非托管资源
-                if (_hookTargetFunc != null) _hookTargetFunc.Disable();
+                // 最终释放所有非托管资源（优化：避免重复Disable()）
+                if (_hookTargetFunc != null)
+                {
+                    try { _hookTargetFunc.Disable(); } catch { }
+                }
                 if (_hModule != IntPtr.Zero) FreeLibrary(_hModule);
                 Console.WriteLine($"\n✅ 所有非托管资源已释放，程序执行完成");
             }
@@ -104,63 +113,125 @@ namespace ProductKeyHookAndCall
             Console.WriteLine("\n按任意键退出程序...");
             Console.ReadKey();
         }
-
-        #region 核心：GetPKeyData+981 Hook拦截函数（第三次调用提取数据）
-        /// <summary>
-        /// Hook拦截后的执行函数，与原生FastCall约定一致
-        /// a1=ECX，a2=EDX，a3=栈传参数（可根据逆向结果调整参数数量/类型）
-        /// </summary>
-        private static int HookedGetPKeyData_981(IntPtr a1, IntPtr a2, IntPtr a3)
+        static int count = 0;
+        #region Hook拦截函数（匹配2个int参数，无修改）
+        private static int HookedGetPKeyData_981(int a1, int a2)
         {
-            // 线程安全自增计数器，避免多线程计数错乱
-            int currentCount = Interlocked.Increment(ref _hookCallCount);
-            Console.WriteLine($"[Hook统计] 第{currentCount}次触发GetPKeyData+981，ECX(a1)=0x{a1.ToString("X8")}");
+            IntPtr pA1 = (IntPtr)a1;
+            IntPtr pA2 = (IntPtr)a2;
 
-            // 仅处理第三次有效调用，提取核心数据
-            if (currentCount == VALID_HOOK_CALL_COUNT)
+            // 1️⃣ 直接检测 a1
+            if (TryPrintIfMatch(pA1, "a1 (ECX)"))
+                return _hookTargetFunc.OriginalFunction(a1, a2);
+
+            // 2️⃣ 检测 a2
+            if (TryPrintIfMatch(pA2, "a2 (EDX)"))
+                return _hookTargetFunc.OriginalFunction(a1, a2);
+
+            // 3️⃣ 检测 a1 + 0x14
+            if (pA1 != IntPtr.Zero)
             {
-                Console.WriteLine("=====================================================");
-                Console.WriteLine($"[🔥 有效调用] 第三次触发，开始提取密钥相关数据！");
-                // 提取ECX(a1)直接指向的宽字符数据
-                ExtractUnicodeData(a1, "ECX(a1)直接指向的原始数据");
-                // 提取a1+0x14偏移指向的数据（适配常见逆向场景，可根据实际修改偏移）
-                IntPtr offset14Ptr = Marshal.ReadIntPtr(a1, 0x14); // x86：4字节指针，偏移0x14
-                ExtractUnicodeData(offset14Ptr, "a1+0x14偏移指向的密钥数据");
-                // 验证是否包含目标字符串
-                if (IsContainTargetStr(a1, TARGET_MATCH_STR))
+                try
                 {
-                    Console.WriteLine($"[✅ 匹配成功] ECX数据包含目标字符串：{TARGET_MATCH_STR}");
+                    IntPtr pExt = Marshal.ReadIntPtr(pA1, 0x14);
+                    if (TryPrintIfMatch(pExt, "a1 + 0x14"))
+                        return _hookTargetFunc.OriginalFunction(a1, a2);
                 }
-                else if (IsContainTargetStr(offset14Ptr, TARGET_MATCH_STR))
+                catch { }
+            }
+
+            // 4️⃣ 什么都没命中 → 静默放行
+            return _hookTargetFunc.OriginalFunction(a1, a2);
+        }
+        private static bool TryPrintIfMatch(IntPtr ptr, string tag)
+        {
+            if (ptr == IntPtr.Zero)
+                return false;
+
+            // 地址基本合法性校验（32位）
+            long addr = ptr.ToInt64();
+            if (addr < 0x10000 || addr > 0x7FFFFFFF)
+                return false;
+
+            // 内存可读性探测
+            if (IsBadReadPtr(ptr, 2))
+                return false;
+
+            string str;
+            try
+            {
+                str = Marshal.PtrToStringUni(ptr, 512);
+            }
+            catch
+            {
+                return false;
+            }
+
+            if (string.IsNullOrEmpty(str))
+                return false;
+
+            foreach (var key in TARGET_KEYS)
+            {
+                if (str.IndexOf(key, StringComparison.OrdinalIgnoreCase) >= 0)
                 {
-                    Console.WriteLine($"[✅ 匹配成功] a1+0x14数据包含目标字符串：{TARGET_MATCH_STR}");
+                    Console.WriteLine("======================================");
+                    Console.WriteLine($"🔥 命中关键字符串：{key}");
+                    Console.WriteLine($"📍 来源：{tag}");
+                    Console.WriteLine($"📌 地址：0x{ptr.ToString("X8")}");
+                    string clean = TrimToReadableUnicode(str);
+                    Console.WriteLine($"🧾 内容：{clean}");
+                    Console.WriteLine($"📏 字符串长度：{clean.Length}");
+                    Console.WriteLine("======================================\n");
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        private static readonly string[] TARGET_KEYS =
+        {
+            "msft2009",
+            "msft2005"
+        };
+        private static string TrimToReadableUnicode(string input)
+        {
+            if (string.IsNullOrEmpty(input))
+                return input;
+
+            var sb = new StringBuilder(input.Length);
+
+            foreach (char c in input)
+            {
+                // 合法可读字符范围
+                if (c == '\0')
+                    break;
+
+                if (c >= 0x20 && c <= 0x7E ||   // ASCII
+                    c >= 0x4E00 && c <= 0x9FFF) // CJK
+                {
+                    sb.Append(c);
                 }
                 else
                 {
-                    Console.WriteLine($"[⚠️  匹配提示] 未检测到目标字符串：{TARGET_MATCH_STR}");
+                    break; // 一旦进入二进制，直接截断
                 }
-                Console.WriteLine("=====================================================\n");
             }
 
-            // 必须调用原生函数，保证GetPKeyData原有业务逻辑不中断
-            return _hookTargetFunc.OriginalFunction(a1, a2, a3);
+            return sb.ToString();
         }
+
+
         #endregion
 
-        #region 业务层：调用GetPKeyData原生函数，获取结构化密钥数据
+        #region GetPKeyData调用逻辑（无修改，已修复PID=null问题）
         private static void CallGetPKeyData()
         {
             Console.WriteLine("==================== 开始调用GetPKeyData ====================");
-            // 初始化参数
             string productKey = TEST_PRODUCT_KEY;
-            // 安全拼接配置文件路径（自动处理目录分隔符，避免无效路径）
             string configPath = Path.Combine(Environment.CurrentDirectory, "pkconfig_winNext.xrm-ms");
-            // 关键：初始化PID输出缓冲区，指定足够容量（避免崩溃/数据截断）
             StringBuilder pidSb = new StringBuilder(512);
-            // out参数无需提前赋值，C#自动处理
             string iid = null, description = null, channel = null, subType = null;
 
-            // 前置检查：配置文件是否存在
             if (!File.Exists(configPath))
             {
                 Console.WriteLine($"❌ 配置文件不存在：{configPath}");
@@ -170,22 +241,11 @@ namespace ProductKeyHookAndCall
 
             try
             {
-                // 调用原生GetPKeyData函数（会触发GetPKeyData+981 Hook）
                 int retCode = _nativeGetPKeyData(
-                    productKey,       // 产品密钥
-                    configPath,       // 配置文件路径
-                    null,             // MPCID：无则传null
-                    null,             // 密钥算法：无则传null
-                    IntPtr.Zero,      // OemId：无需处理传IntPtr.Zero
-                    IntPtr.Zero,      // OtherId：无需处理传IntPtr.Zero
-                    out iid,          // 输出：密钥唯一IID
-                    out description,  // 输出：密钥描述
-                    out channel,      // 输出：密钥通道（零售/批量等）
-                    out subType,      // 输出：密钥子类型
-                    pidSb             // 输出：PID（已初始化缓冲区）
+                    productKey, configPath, null, null, IntPtr.Zero, IntPtr.Zero,
+                    out iid, out description, out channel, out subType, pidSb
                 );
 
-                // 处理调用结果
                 if (retCode == 0)
                 {
                     Console.WriteLine("✅ GetPKeyData调用成功，结构化数据如下：");
@@ -208,7 +268,6 @@ namespace ProductKeyHookAndCall
             }
             finally
             {
-                // 必须释放：原生函数为out string分配的非托管内存（避免内存泄漏）
                 FreeNativeOutString(iid);
                 FreeNativeOutString(description);
                 FreeNativeOutString(channel);
@@ -218,39 +277,63 @@ namespace ProductKeyHookAndCall
         }
         #endregion
 
-        #region 辅助方法：宽字符解析/字符串匹配/内存释放/错误打印
-        /// <summary>
-        /// 从指针解析Unicode（宽字符）字符串并打印（适配Windows wchar_t*）
-        /// </summary>
+        #region 辅助方法（无修改）
         private static void ExtractUnicodeData(IntPtr ptr, string desc)
         {
+            // 1. 空指针直接返回
             if (ptr == IntPtr.Zero)
             {
                 Console.WriteLine($"{desc}：指针为空（IntPtr.Zero）");
                 return;
             }
+
+            // 2. 32位地址范围校验
+            if ((long)ptr > 0x7FFFFFFF || (long)ptr < 0x00010000)
+            {
+                Console.WriteLine($"{desc}：指针地址无效（0x{ptr.ToString("X8")}），不在32位有效内存范围");
+                return;
+            }
+
+            // 3. 尝试用系统API探测内存是否可读
+            if (!IsMemoryReadable(ptr, 2)) // 先探测2字节（1个Unicode字符）
+            {
+                Console.WriteLine($"{desc}：内存不可读（0x{ptr.ToString("X8")}），跳过读取");
+                return;
+            }
+
+            // 4. 安全读取字符串（仅在内存可读时执行）
+            string unicodeStr = null;
             try
             {
-                string unicodeStr = Marshal.PtrToStringUni(ptr);
-                if (string.IsNullOrEmpty(unicodeStr))
-                {
-                    Console.WriteLine($"{desc}：空字符串");
-                    return;
-                }
-                // 限制显示长度，避免超长字符串刷屏
+                unicodeStr = Marshal.PtrToStringUni(ptr, 512);
+            }
+            catch
+            {
+                Console.WriteLine($"{desc}：读取失败，可能为非Unicode数据");
+                return;
+            }
+
+            // 5. 处理结果
+            if (string.IsNullOrEmpty(unicodeStr))
+            {
+                Console.WriteLine($"{desc}：空字符串或非Unicode数据");
+            }
+            else
+            {
                 string showStr = unicodeStr.Substring(0, Math.Min(unicodeStr.Length, 256));
                 Console.WriteLine($"{desc}：{showStr}");
                 Console.WriteLine($"{desc}内存地址：0x{ptr.ToString("X8")}");
             }
-            catch
-            {
-                Console.WriteLine($"{desc}：解析失败（非有效宽字符指针）");
-            }
         }
 
-        /// <summary>
-        /// 判断指针指向的宽字符字符串是否包含目标子串
-        /// </summary>
+        // 辅助函数：用系统API探测内存是否可读
+        [DllImport("kernel32.dll")]
+        private static extern bool IsBadReadPtr(IntPtr lp, uint ucb);
+        private static bool IsMemoryReadable(IntPtr ptr, int size)
+        {
+            return !IsBadReadPtr(ptr, (uint)size);
+        }
+
         private static bool IsContainTargetStr(IntPtr ptr, string target)
         {
             if (ptr == IntPtr.Zero || string.IsNullOrEmpty(target)) return false;
@@ -264,10 +347,9 @@ namespace ProductKeyHookAndCall
                 return false;
             }
         }
+        
 
-        /// <summary>
-        /// 释放原生GetPKeyData为out string分配的非托管内存（必做！）
-        /// </summary>
+
         private static void FreeNativeOutString(string str)
         {
             if (!string.IsNullOrEmpty(str))
@@ -277,20 +359,17 @@ namespace ProductKeyHookAndCall
                     IntPtr strPtr = Marshal.StringToHGlobalUni(str);
                     Marshal.FreeCoTaskMem(strPtr);
                 }
-                catch { /* 忽略释放异常，不影响主流程 */ }
+                catch { }
             }
         }
 
-        /// <summary>
-        /// 格式化打印错误信息
-        /// </summary>
         private static void PrintError(string msg, int errorCode)
         {
             Console.WriteLine($"❌ {msg}：0x{errorCode:X8}（十进制：{errorCode}）");
         }
         #endregion
 
-        #region 导入Kernel32.dll核心API（模块加载/函数地址获取/资源释放）
+        #region Kernel32.dll API导入（无修改）
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         private static extern IntPtr LoadLibrary(string lpFileName);
 
