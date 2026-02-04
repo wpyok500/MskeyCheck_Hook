@@ -154,25 +154,44 @@ namespace SppTokenGenerator
 
         private static byte[] GetEncryptArray(byte[] Src, bool flag)
         {
-            byte[] array = new byte[16];
+            int num = 0;
             int num2 = 0;
-            for (int i = 0; i < 25; i++)
+            byte[] array = new byte[16];
+            do
             {
-                uint val = Src[i];
-                int j = 0;
-                if (num2 != 0)
+                byte b = Src[num];
+                int num3 = 0;
+                bool flag2 = num2 != 0;
+                if (flag2)
                 {
                     do
                     {
-                        uint num4 = 24 * (uint)array[j] + val;
-                        array[j] = (byte)num4;
-                        val = num4 >> 8;
-                        j++;
-                    } while (j < num2);
+                        uint num4 = (uint)(24 * array[num3] + b);
+                        array[num3] = (byte)num4;
+                        b = (byte)(num4 >> 8);
+                        num3++;
+                    }
+                    while (num3 < num2);
                 }
-                if (val > 0 && num2 < 16) array[num2++] = (byte)val;
+                bool flag3 = b > 0;
+                if (flag3)
+                {
+                    bool flag4 = num2 >= 16;
+                    if (flag4)
+                    {
+                        break;
+                    }
+                    array[num2++] = b;
+                }
+                num++;
             }
-            if (flag) array[14] |= 8; // N-Key 特殊标记
+            while (num < 25);
+            if (flag)
+            {
+                byte[] array2 = array;
+                int num5 = 14;
+                array2[num5] |= 8;
+            }
             return array;
         }
         #endregion
@@ -180,68 +199,119 @@ namespace SppTokenGenerator
         #region 核心逻辑：Hash 计算 (GetHashValue)
         private static byte[] GetHashValue(byte[] Src)
         {
-            // 原始 CRC 逻辑
-            uint crc = uint.MaxValue;
-            foreach (byte b in Src)
-                crc = HashData[(int)((uint)b ^ (crc >> 24))] ^ (crc << 8);
-
-            byte[] res = new byte[32];
-
-            // 这里的 Src 应该是 GetEncryptArray 返回的 16 字节
-            // SPP 实际上是将这 16 字节重新排列到 32 字节缓冲区中
-            for (int i = 0; i < 16; i++)
+            byte[] array = Src.Skip(12).Take(4).ToArray<byte>();
+            int num = BitConverter.ToInt32(array, 0);
+            num >>= 16;
+            num = (((((num >> 3) & 1) << 2) ^ num) & 8) ^ num;
+            num &= 254;
+            Src[14] = (byte)num;
+            Src[13] = 0;
+            Src[12] = (byte)(array[0] & 127);
+            byte b = (byte)((int)(2 * (array[1] & 127)) | (array[0] >> 7));
+            int num2 = (array[2] >> 3) & 1;
+            int num3 = (int)array[2] ^ (((int)array[2] ^ (4 * ((num2 != 0) ? num2 : 0))) & 8);
+            byte b2 = (byte)(((2 * num3) | (array[1] >> 7)) & 3);
+            int num4 = (int)ToShort(b2, b);
+            uint num5 = uint.MaxValue;
+            int num6 = 0;
+            int num7 = Src.Length;
+            do
             {
-                res[i] = Src[i];
+                num5 = HashData[(int)((uint)Src[num6++] ^ (num5 >> 24))] ^ (num5 << 8);
+                num7--;
             }
-
-            // 关键混淆区：res[16..22] 承载了密钥的核心 Hash 特征
-            // 我们微调一下位移偏量
-            res[16] = (byte)((Src[6] >> 2) | (Src[7] << 6));
-            res[17] = (byte)((Src[7] >> 2) | (Src[8] << 6));
-            res[18] = (byte)((Src[8] >> 2) | (Src[9] << 6));
-            res[19] = (byte)((Src[9] >> 2) | (Src[10] << 6));
-            res[20] = (byte)((Src[10] >> 2) | (Src[11] << 6));
-            res[21] = (byte)((Src[11] >> 2) | (Src[12] << 6));
-            res[22] = (byte)(Src[12] >> 2);
-
-            res[8] = 1; // 激活标记
-            return res;
+            while (num7 > 0);
+            byte[] array2 = new byte[32];
+            num5 = ~num5 & 1023U;
+            bool flag = (long)num4 == (long)((ulong)num5);
+            if (flag)
+            {
+                array2[0] = Src[0];
+                array2[1] = Src[1];
+                int num8 = 0;
+                byte[] array3 = array2;
+                int num9 = 2;
+                array3[num9] ^= (byte)((array2[2] ^ Src[2]) & 15);
+                int num10 = 0;
+                do
+                {
+                    array2[num10 + 4] = (byte)(((int)Src[3 + num10] << 4) | (Src[2 + num10] >> 4));
+                    num10++;
+                }
+                while (num10 < 3);
+                byte[] array4 = array2;
+                int num11 = 7;
+                array4[num11] ^= (byte)(((((int)Src[num10 + 3] << 4) | (Src[num10 + 2] >> 4)) ^ (int)array2[7]) & 63);
+                do
+                {
+                    array2[num8 + 16] = (byte)(((int)Src[7 + num8] << 6) | (Src[6 + num8] >> 2));
+                    num8++;
+                }
+                while (num8 < 6);
+                byte[] array5 = array2;
+                int num12 = 22;
+                array5[num12] ^= (byte)(((int)array2[22] ^ (Src[12] >> 2)) & 31);
+                byte[] array6 = array2;
+                int num13 = 8;
+                array6[num13] ^= (byte)(((int)array2[8] ^ (num3 >> 1)) & 1);
+            }
+            return array2;
+        }
+        private static short ToShort(byte byte1, byte byte2)
+        {
+            return (short)(((int)byte1 << 8) | (int)byte2);
         }
         #endregion
 
         #region 核心逻辑：Payload 转换 (GetActPkeyConfig)
         private static byte[] GetActPkeyConfig(byte[] Src)
         {
-            byte[] array = new byte[13];
-
-            // 核心修正：严格遵循位流偏移。
-            // 如果结果依然为 7Xit，说明 Src 数组的输入源（GetHashValue）中的索引需要前移或后移
-
-            // 0-7 bits: [Src8:bit0] + [Src4:7bits]
-            array[0] = (byte)((Src[8] & 1) | ((Src[4] & 0x7F) << 1));
-
-            // 8-15 bits: [Src4:bit7] + [Src5:7bits]
-            array[1] = (byte)(((Src[4] >> 7) & 1) | ((Src[5] & 0x7F) << 1));
-
-            // 16-23 bits: [Src5:bit7] + [Src6:7bits]
-            array[2] = (byte)(((Src[5] >> 7) & 1) | ((Src[6] & 0x7F) << 1));
-
-            // 24-31 bits: [Src6:bit7] + [Src7:7bits]
-            // 关键：注意 Src[0] 是否应该在此处介入
-            array[3] = (byte)(((Src[6] >> 7) & 1) | (Src[7] << 1));
-
-            // 后续字节处理，确保 Src[16-22] 准确对齐
-            array[4] = Src[0];
-            array[5] = Src[1];
-            array[6] = (byte)((Src[2] & 0x1F) | (Src[16] << 5));
-            array[7] = (byte)((Src[16] >> 3) | (Src[17] << 5));
-            array[8] = (byte)((Src[17] >> 3) | (Src[18] << 5));
-            array[9] = (byte)((Src[18] >> 3) | (Src[19] << 5));
-            array[10] = (byte)((Src[19] >> 3) | (Src[20] << 5));
-            array[11] = (byte)((Src[20] >> 3) | (Src[21] << 5));
-            array[12] = (byte)((Src[21] >> 3) | (Src[22] << 5));
-
-            return array;
+            byte[] array = new byte[256];
+            int num = 0;
+            array[0] = (byte)((Src[8] != 0) ? Src[8] : 0);
+            array[1] = 0;
+            array[5] = 0;
+            do
+            {
+                byte b = Src[4 + num];
+                byte b2 = (byte)(array[num + 1] & 254);
+                array[num] = (byte)((array[num] & 1) | (2 * Src[4 + num]));
+                num++;
+                array[num] = (byte)((int)b2 | (b >> 7));
+            }
+            while (num < 3);
+            int num2 = 0;
+            byte[] array2 = array;
+            int num3 = 3;
+            array2[num3] ^= (byte)(((Src[7] * 2) ^ array[3]) & 126);
+            do
+            {
+                byte b3 = (byte)(Src[num2] >> 1);
+                byte b4 = (byte)(array[num2 + 4] & 128);
+                array[num2 + 3] = (byte)(((int)Src[num2] << 7) | (int)(array[num2 + 3] & 127));
+                num2++;
+                array[num2 + 3] = (byte)(b3 | b4);
+            }
+            while (num2 < 2);
+            int num4 = 0;
+            int num5 = (int)(Src[2] & 15);
+            array[5] = (byte)((num5 << 7) | (int)(array[5] & 127));
+            array[6] = (byte)((num5 >> 1) | (int)(array[6] & 248));
+            do
+            {
+                byte b5 = (byte)(Src[num4 + 16] >> 5);
+                byte b6 = (byte)(array[num4 + 7] & 248);
+                array[num4 + 6] = (byte)(((int)Src[num4 + 16] << 3) | (int)(array[num4 + 6] & 7));
+                num4++;
+                array[num4 + 6] = (byte)(b6 | b5);
+            }
+            while (num4 < 6);
+            array[12] = (byte)((array[12] & 7) | (8 * Src[22]));
+            byte[] array3 = array;
+            array3[4] = array[4];
+            array3[8] = array[8];
+            array3[12] = array[12];
+            return array3.Take(13).ToArray<byte>();
         }
 
         private static string Sub_7BBD6C47_Fixed(byte[] data)
