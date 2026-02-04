@@ -49,8 +49,8 @@ namespace 密钥检测关键字符串Hook
         private static string ProductKeys = "6DDRB-NYW97-7B67B-VPJJP-J4473";
         static void Main(string[] args)
         {
-
-            ActConfigKeyGenerate(); //payload 算法还有问题 
+            //=====纯算法生成激活Token方法=====
+            ActConfigKeyGenerate(); 
             //==========================================================
             
             string pkeyconfigxml = System.Environment.CurrentDirectory + "\\pkconfig_winNext.xrm-ms";
