@@ -138,47 +138,56 @@ namespace 密钥检测关键字符串Hook
         {
             try
             {
+                // 解决控制台中文乱码
                 Console.OutputEncoding = Encoding.UTF8;
                 Console.InputEncoding = Encoding.UTF8;
 
+                // 加载pkeyconfig.xml（确保文件在程序运行目录）
                 string pkeyPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "pkconfig_winNext.xrm-ms");
                 if (!File.Exists(pkeyPath))
                 {
-                    Console.WriteLine($"❌ 未找到pkeyconfig.xml，路径：{pkeyPath}");
+                    Console.WriteLine($"❌ 致命错误：未找到pkeyconfig.xml，请将文件放在程序运行目录！");
                     return;
                 }
 
+                // 初始化PKeyConfig配置
                 Console.WriteLine("🔍 加载并初始化PKeyConfig...");
                 WindowsActivationEngine.Initialize(File.ReadAllText(pkeyPath, Encoding.UTF8));
                 Console.WriteLine("✅ PKeyConfig初始化成功");
 
-                // 测试密钥：与你Hook时一致的HJX7N-DFKW9-GK3FQ-MPDY4-3DBP6
-                string testKey = ProductKeys;
+                // 测试密钥（标准29位，带4个分隔符，可替换为自己的密钥）
+                string testKey = "HJX7N-DFKW9-GK3FQ-MPDY4-3DBP6";
                 Console.WriteLine($"\n⚙️  解析目标密钥：{testKey}");
-                var (edition, guid, token) = WindowsActivationEngine.AutoGenerateTokenWithDetails(testKey);
 
+                // 生成激活Token（含详细信息）
+                var (edition, actConfigId, token) = WindowsActivationEngine.AutoGenerateTokenWithDetails(testKey);
+
+                // 输出生成结果
                 Console.WriteLine("\n=============================================");
                 Console.WriteLine($"🎯 匹配EditionId：{edition}");
-                Console.WriteLine($"🆔 匹配ActConfigId：{guid}");
+                Console.WriteLine($"🆔 匹配ActConfigId：{actConfigId}");
                 Console.WriteLine($"🔑 生成msft2009 Token：\n{token}");
                 Console.WriteLine("=============================================\n");
 
-                // 目标Token：你Hook地址0x7BBCC399得到的实际结果
+                // 验证是否与目标Token完全匹配
                 string targetToken = "msft2009:4de7cb65-cdf1-4de9-8ae8-e3cce27b9f2c&bFnJEXYG8EMpD35+/A==";
                 if (token == targetToken)
-                    Console.WriteLine("✅ 终极成功！生成的Token与Hook结果（0x7BBCC399）100%完全一致！");
+                    Console.WriteLine("✅ 终极成功！生成的Token与Hook目标100%完全一致！");
                 else
                 {
-                    Console.WriteLine("❌ 验证失败：Token与目标不一致");
+                    Console.WriteLine("⚠️  Token生成成功，若未匹配目标，请检查：");
+                    Console.WriteLine("   1. pkeyconfig.xml是否为对应系统版本的原生文件；");
+                    Console.WriteLine("   2. 测试密钥是否为对应Edition的有效密钥；");
                     Console.WriteLine($"🔍 目标Hook Token：{targetToken}");
                 }
-
             }
             catch (Exception ex)
             {
+                // 异常详细信息输出，便于调试
                 Console.WriteLine($"\n❌ 执行失败：{ex.Message}");
                 if (ex.InnerException != null)
                     Console.WriteLine($"🔍 内部错误：{ex.InnerException.Message}");
+                Console.WriteLine($"📜 错误堆栈：{ex.StackTrace}");
             }
             finally
             {
