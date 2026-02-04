@@ -17,6 +17,23 @@ class Program
         int extraFlag
     );
 
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)]
+        public unsafe delegate long Sub_7FFBB9DBF60C(
+        IntPtr a1,
+        IntPtr a2,
+        IntPtr a3,
+        IntPtr a4,     // volatile int*
+        IntPtr lpMem   // const wchar_t**
+    );
+
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)]
+    public unsafe delegate long Sub_7FFBB9DBF60CDelegate(
+    IntPtr a1,
+    IntPtr a2,
+    IntPtr a3,
+    IntPtr a4,     // volatile int*
+    IntPtr lpMem   // const wchar_t**
+    );
     [DllImport("kernel32.dll")]
     static extern IntPtr LoadLibrary(string lpFileName);
 
@@ -47,9 +64,11 @@ class Program
         IntPtr outStr2 = IntPtr.Zero;
         IntPtr outStr3 = IntPtr.Zero;
 
-        //可以使用hook 工具对 关键激活参数 偏移量0x00007FFAFB8DF60C−0x00007FFAFB8B1000=0x2E60C
+        //可以使用hook 工具对 关键激活参数 偏移量0x00007FFDAE29F60C−0x00007FFDAE270000=0x2F60C
         try
         {
+            Console.WriteLine("dll基址：0x"+ hMod.ToString("X8"));
+            Console.WriteLine("可以hook的地址：0x" + IntPtr.Add(hMod, 0x2F60C).ToString("X8"));
             Console.WriteLine("按任意健开始，执行GetPKeyData...");
             Console.ReadKey();
             int hr = getPKeyData(
