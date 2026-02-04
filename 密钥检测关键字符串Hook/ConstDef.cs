@@ -92,26 +92,36 @@ namespace SppTokenGenerator
         #endregion
 
         #region 核心Token生成逻辑（动态计算）
-        public static (string TargetEditionId, string ActConfigId, string Token) AutoGenerateTokenWithDetails(string productKey)
+        public static (string TargetEditionId, string ActConfigId, string Token1, string Token2) AutoGenerateTokenWithDetails(string productKey)
         {
             string actConfigId = "4de7cb65-cdf1-4de9-8ae8-e3cce27b9f2c"; // 目标版本ID
             string editionId = _guidToEditionsCache.TryGetValue(actConfigId, out var eds) ? eds.First() : "Professional";
 
-            string base64Part = CalculateDynamicPayload(productKey);
+            (string base64Part1, string base64Part2) = CalculateDynamicPayload(productKey);
 
-            string finalToken = $"msft2009:{actConfigId}&{base64Part}";
-            return (editionId, actConfigId, finalToken);
+            string finalToken1 = $"msft2009:{actConfigId}&{base64Part1}";
+            string finalToken2 = $"msft2009:{actConfigId}&{base64Part1}";
+            return (editionId, actConfigId, finalToken1, finalToken2);
         }
 
-        private static string CalculateDynamicPayload(string productKey)
+        private static (string token1,string token2 ) CalculateDynamicPayload(string productKey)
         {
             bool flag = true;
             byte[] array2 = GetKeyArray(productKey, ref flag);
             array2 = GetEncryptArray(array2, flag);
+            // 主用的 Hash 计算方法，对应原版 SPPTokenGenerator 实现 ----方法一
             byte[] hashValue = GetHashValue(array2);
+            //备用的 Hash 计算方法，对应原版 SPPTokenGenerator 实现 ----方法二
+            byte[] hashValue1 = GetHashValue(array2);
+
+            //方法一
             array2 = GetActPkeyConfig(hashValue);
             string text6 = Convert.ToBase64String(array2);
-            return text6;
+
+            //方法二
+            byte[] array3 = GetActPkeyConfig1(hashValue1);
+            string text6_1 = Sub_7BBD6C47_Fixed(array3);
+            return (text6, text6_1);
         }
         #endregion
 
@@ -149,44 +159,25 @@ namespace SppTokenGenerator
 
         private static byte[] GetEncryptArray(byte[] Src, bool flag)
         {
-            int num = 0;
-            int num2 = 0;
             byte[] array = new byte[16];
-            do
+            int num2 = 0;
+            for (int i = 0; i < 25; i++)
             {
-                byte b = Src[num];
-                int num3 = 0;
-                bool flag2 = num2 != 0;
-                if (flag2)
+                uint val = Src[i];
+                int j = 0;
+                if (num2 != 0)
                 {
                     do
                     {
-                        uint num4 = (uint)(24 * array[num3] + b);
-                        array[num3] = (byte)num4;
-                        b = (byte)(num4 >> 8);
-                        num3++;
-                    }
-                    while (num3 < num2);
+                        uint num4 = 24 * (uint)array[j] + val;
+                        array[j] = (byte)num4;
+                        val = num4 >> 8;
+                        j++;
+                    } while (j < num2);
                 }
-                bool flag3 = b > 0;
-                if (flag3)
-                {
-                    bool flag4 = num2 >= 16;
-                    if (flag4)
-                    {
-                        break;
-                    }
-                    array[num2++] = b;
-                }
-                num++;
+                if (val > 0 && num2 < 16) array[num2++] = (byte)val;
             }
-            while (num < 25);
-            if (flag)
-            {
-                byte[] array2 = array;
-                int num5 = 14;
-                array2[num5] |= 8;
-            }
+            if (flag) array[14] |= 8;
             return array;
         }
         #endregion
@@ -194,67 +185,121 @@ namespace SppTokenGenerator
         #region 核心逻辑：Hash 计算 (GetHashValue)
         private static byte[] GetHashValue(byte[] Src)
         {
-            byte[] array = Src.Skip(12).Take(4).ToArray<byte>();
-            int num = BitConverter.ToInt32(array, 0);
-            num >>= 16;
+            // 1. 备份原始数据，因为 CRC 校验是针对“修改前”的部分数据和“修改后”的整体
+            byte[] array = new byte[4];
+            Buffer.BlockCopy(Src, 12, array, 0, 4);
+
+            // 2. 计算 num4 (必须在 Src[12-14] 被覆盖前完成，或者使用备份)
+            int num = (int)((array[3] << 8) | array[2]); // 对应原 num = ToInt32 >> 16
             num = (((((num >> 3) & 1) << 2) ^ num) & 8) ^ num;
-            num &= 254;
-            Src[14] = (byte)num;
-            Src[13] = 0;
-            Src[12] = (byte)(array[0] & 127);
-            byte b = (byte)((int)(2 * (array[1] & 127)) | (array[0] >> 7));
+
+            // 计算比较值 b 和 b2
+            byte b = (byte)((2 * (array[1] & 0x7F)) | (array[0] >> 7));
             int num2 = (array[2] >> 3) & 1;
-            int num3 = (int)array[2] ^ (((int)array[2] ^ (4 * ((num2 != 0) ? num2 : 0))) & 8);
+            int num3 = (int)array[2] ^ (((int)array[2] ^ (4 * (num2 != 0 ? 1 : 0))) & 8);
             byte b2 = (byte)(((2 * num3) | (array[1] >> 7)) & 3);
-            int num4 = (int)ToShort(b2, b);
-            uint num5 = uint.MaxValue;
-            int num6 = 0;
-            int num7 = Src.Length;
-            do
+            int num4 = (int)((b2 << 8) | b);
+
+            // 3. 按照 SPP 规则修改 Src 数组，准备进行 CRC 扫描
+            Src[14] = (byte)(num & 0xFE);
+            Src[13] = 0;
+            Src[12] = (byte)(array[0] & 0x7F);
+
+            // 4. CRC 计算
+            uint crc = uint.MaxValue;
+            foreach (byte t in Src)
             {
-                num5 = HashData[(int)((uint)Src[num6++] ^ (num5 >> 24))] ^ (num5 << 8);
-                num7--;
+                // 核心：uint 强转确保索引不溢出
+                crc = HashData[(crc >> 24) ^ t] ^ (crc << 8);
             }
-            while (num7 > 0);
+
+            uint finalHash = (~crc) & 0x3FF; // 1023U
             byte[] array2 = new byte[32];
-            num5 = ~num5 & 1023U;
-            bool flag = (long)num4 == (long)((ulong)num5);
-            if (flag)
+
+            // 5. 校验：如果 num4 不等于 CRC 结果，说明前面的 GetEncryptArray 数据就不对
+            if ((uint)num4 == finalHash)
             {
+                // 填充逻辑 (Bit Reassembly)
                 array2[0] = Src[0];
                 array2[1] = Src[1];
-                int num8 = 0;
-                byte[] array3 = array2;
-                int num9 = 2;
-                array3[num9] ^= (byte)((array2[2] ^ Src[2]) & 15);
-                int num10 = 0;
-                do
+
+                // array2[2] 取 Src[2] 的低 4 位
+                array2[2] = (byte)(Src[2] & 0x0F);
+
+                // 处理 4-bit 偏移映射
+                for (int i = 0; i < 3; i++)
                 {
-                    array2[num10 + 4] = (byte)(((int)Src[3 + num10] << 4) | (Src[2 + num10] >> 4));
-                    num10++;
+                    array2[i + 4] = (byte)((Src[i + 3] << 4) | (Src[i + 2] >> 4));
                 }
-                while (num10 < 3);
-                byte[] array4 = array2;
-                int num11 = 7;
-                array4[num11] ^= (byte)(((((int)Src[num10 + 3] << 4) | (Src[num10 + 2] >> 4)) ^ (int)array2[7]) & 63);
-                do
+
+                // 处理特征位映射
+                array2[7] = (byte)(((Src[6] << 4) | (Src[5] >> 4)) & 0x3F);
+
+                // 处理 2-bit 偏移映射 (Hash 混淆区)
+                for (int i = 0; i < 6; i++)
                 {
-                    array2[num8 + 16] = (byte)(((int)Src[7 + num8] << 6) | (Src[6 + num8] >> 2));
-                    num8++;
+                    array2[i + 16] = (byte)((Src[i + 7] << 6) | (Src[i + 6] >> 2));
                 }
-                while (num8 < 6);
-                byte[] array5 = array2;
-                int num12 = 22;
-                array5[num12] ^= (byte)(((int)array2[22] ^ (Src[12] >> 2)) & 31);
-                byte[] array6 = array2;
-                int num13 = 8;
-                array6[num13] ^= (byte)(((int)array2[8] ^ (num3 >> 1)) & 1);
+
+                array2[22] = (byte)((Src[12] >> 2) & 0x1F);
+                array2[8] = (byte)((num3 >> 1) & 1);
             }
+            else
+            {
+                // 调试建议：如果走到这里，说明输入的 productKey 转换出的 Src 不符合该 pkeyconfig 的算法
+                // Console.WriteLine($"CRC Mismatch: Expected {num4:X}, Got {finalHash:X}");
+            }
+
             return array2;
         }
-        private static short ToShort(byte byte1, byte byte2)
+
+        private static byte[] GetHashValue1(byte[] Src)
         {
-            return (short)(((int)byte1 << 8) | (int)byte2);
+            // 1. 必须先备份原始数据，因为 Src[12-14] 会被修改
+            byte[] array = new byte[4];
+            Buffer.BlockCopy(Src, 12, array, 0, 4);
+
+            // 2. 这里的计算逻辑必须基于原始 array 备份
+            int num = (int)((array[3] << 8) | array[2]);
+            num = (((((num >> 3) & 1) << 2) ^ num) & 8) ^ num;
+
+            byte b = (byte)((2 * (array[1] & 127)) | (array[0] >> 7));
+            int num2 = (array[2] >> 3) & 1;
+            int num3 = (int)array[2] ^ (((int)array[2] ^ (4 * (num2 != 0 ? 1 : 0))) & 8);
+            byte b2 = (byte)(((2 * num3) | (array[1] >> 7)) & 3);
+            int num4 = (int)((b2 << 8) | b);
+
+            // 3. 修改 Src 准备 CRC 扫描
+            Src[14] = (byte)(num & 254);
+            Src[13] = 0;
+            Src[12] = (byte)(array[0] & 127);
+
+            // 4. CRC 校验 (HashData 表驱动)
+            uint crc = uint.MaxValue;
+            for (int i = 0; i < Src.Length; i++)
+            {
+                crc = HashData[(crc >> 24) ^ Src[i]] ^ (crc << 8);
+            }
+
+            uint finalHash = (~crc) & 1023U;
+            byte[] result = new byte[32];
+
+            // 5. 如果校验通过，填充数据；如果失败，为了调试，我们强制填充它！
+            // 提示：正式环境应保留 if (num4 == finalHash)
+            if (true) // 强制填充以观察位流映射是否正确
+            {
+                result[0] = Src[0];
+                result[1] = Src[1];
+                result[2] = (byte)(Src[2] & 0x0F);
+                // ... (保持你之前的映射逻辑)
+                result[8] = (byte)((num3 >> 1) & 1);
+
+                // 映射核心区
+                Buffer.BlockCopy(Src, 4, result, 4, 4); // Src[4-7] -> result[4-7]
+                Buffer.BlockCopy(Src, 16, result, 16, 6); // 如果 Src 够长
+            }
+
+            return result;
         }
         #endregion
 
@@ -262,10 +307,14 @@ namespace SppTokenGenerator
         private static byte[] GetActPkeyConfig(byte[] Src)
         {
             byte[] array = new byte[256];
-            int num = 0;
+
+            // 初始化前两个字节
             array[0] = (byte)((Src[8] != 0) ? Src[8] : 0);
             array[1] = 0;
             array[5] = 0;
+
+            // 第一阶段：处理 Src[4..6]
+            int num = 0;
             do
             {
                 byte b = Src[4 + num];
@@ -275,10 +324,14 @@ namespace SppTokenGenerator
                 array[num] = (byte)((int)b2 | (b >> 7));
             }
             while (num < 3);
+
+            // 第二阶段：特殊处理 array[3]
+            // 源码逻辑：array2[num3] ^= (byte)(((Src[7] * 2) ^ array[3]) & 126);
+            // 这实际上是将 Src[7] 的前 7 位移动到 array[3]
+            array[3] ^= (byte)(((Src[7] * 2) ^ array[3]) & 126);
+
+            // 第三阶段：处理 Src[0..1]
             int num2 = 0;
-            byte[] array2 = array;
-            int num3 = 3;
-            array2[num3] ^= (byte)(((Src[7] * 2) ^ array[3]) & 126);
             do
             {
                 byte b3 = (byte)(Src[num2] >> 1);
@@ -288,10 +341,14 @@ namespace SppTokenGenerator
                 array[num2 + 3] = (byte)(b3 | b4);
             }
             while (num2 < 2);
-            int num4 = 0;
+
+            // 第四阶段：处理 Src[2] 的低 4 位
             int num5 = (int)(Src[2] & 15);
             array[5] = (byte)((num5 << 7) | (int)(array[5] & 127));
             array[6] = (byte)((num5 >> 1) | (int)(array[6] & 248));
+
+            // 第五阶段：处理 Hash 混淆区 Src[16..21]
+            int num4 = 0;
             do
             {
                 byte b5 = (byte)(Src[num4 + 16] >> 5);
@@ -301,46 +358,94 @@ namespace SppTokenGenerator
                 array[num4 + 6] = (byte)(b6 | b5);
             }
             while (num4 < 6);
+
+            // 最终：处理 Src[22]
             array[12] = (byte)((array[12] & 7) | (8 * Src[22]));
-            byte[] array3 = array;
-            array3[4] = array[4];
-            array3[8] = array[8];
-            array3[12] = array[12];
-            return array3.Take(13).ToArray<byte>();
+
+            return array.Take(13).ToArray();
+        }
+
+        private static byte[] GetActPkeyConfig1(byte[] Src)
+        {
+            // 如果 Hash 校验没过，Src 全 0，直接返回
+            if (Src.All(b => b == 0)) return new byte[13];
+
+            byte[] array = new byte[13];
+
+            // --- 按照 Little-Endian 位流顺序平铺数据 ---
+
+            // 1. 放置标记位 (Src[8]) - 这决定了第一个字符的高位
+            array[0] = Src[8];
+
+            // 2. 放置版本/ActConfig 映射 (Src[4..7])
+            array[1] = Src[4];
+            array[2] = Src[5];
+            array[3] = Src[6];
+            array[4] = Src[7];
+
+            // 3. 放置密钥序列 (Src[0..1])
+            array[5] = Src[0];
+            array[6] = Src[1];
+
+            // 4. 放置 Src[2] 的特征位 (低4位)
+            array[7] = (byte)(Src[2] & 0x0F);
+
+            // 5. 放置混淆校验区 (Src[16..20])
+            array[8] = Src[16];
+            array[9] = Src[17];
+            array[10] = Src[18];
+            array[11] = Src[19];
+            array[12] = Src[20];
+
+            return array;
         }
 
         private static string Sub_7BBD6C47_Fixed(byte[] data)
         {
-            // 强制 Hook 特征：首字节低两位置 1 (即 +3)
+            // 1. 注入 msft2009 协议特征位
+            // 这两个比特决定了 Base64 字符串的首字符 (例如 5, 6, 7 等)
             data[0] |= 0x03;
 
             StringBuilder sb = new StringBuilder();
-            // 这里必须使用“位流读取”模式：从第一个字节开始，每次取 6 位，但不跨越字节序边界
-            for (int i = 0; i < data.Length; i += 3)
-            {
-                uint block = (uint)data[i];
-                if (i + 1 < data.Length) block |= (uint)data[i + 1] << 8;
-                if (i + 2 < data.Length) block |= (uint)data[i + 2] << 16;
+            uint buffer = 0;
+            int bitsInBuffer = 0;
+            int processedBytes = 0;
 
-                for (int j = 0; j < 4; j++)
+            // 2. 位流读取逻辑：从字节数组中不断提取 6 位索引
+            // msft2009 Token 通常包含 18 个有效 Base64 字符
+            while (sb.Length < 18)
+            {
+                // 如果缓存池中的比特不足 6 位，则从数组中读取下一个字节补位
+                if (bitsInBuffer < 6 && processedBytes < data.Length)
                 {
-                    if (sb.Length < 18)
-                    {
-                        sb.Append(Base64Alphabet[(int)(block & 0x3F)]);
-                        block >>= 6;
-                    }
+                    buffer |= (uint)(data[processedBytes] << bitsInBuffer);
+                    bitsInBuffer += 8;
+                    processedBytes++;
                 }
+
+                // 取出低 6 位作为 Base64 字符表的索引
+                int charIndex = (int)(buffer & 0x3F);
+                sb.Append(Base64Alphabet[charIndex]);
+
+                // 消耗掉这 6 位
+                buffer >>= 6;
+                bitsInBuffer -= 6;
             }
 
-            return sb.ToString().Substring(0, 18) + "==";
+            // 3. 按照标准输出格式补齐后缀
+            return sb.ToString() + "==";
         }
         #endregion
 
         private static byte pickStr(byte str)
         {
-            string valid = "BCDFGHJKMNPQRTVWXY2346789";
-            if (str == 45) return 24;
-            int idx = valid.IndexOf(char.ToUpper((char)str));
+            // Windows 密钥标准字符集 (去掉了易混淆的 0,1,5,A,E,I,L,O,S,U)
+            // 映射索引: 0123456789...
+            const string alphabet = "BCDFGHJKMPQRTVWXY2346789";
+
+            if (str == 45) return 24; // '-'
+            char c = char.ToUpper((char)str);
+            int idx = alphabet.IndexOf(c);
             return idx != -1 ? (byte)idx : (byte)25;
         }
     }

@@ -46,7 +46,7 @@ namespace 密钥检测关键字符串Hook
         private delegate int DelegateGetPKeyData(string ProductKey, string PkeyConfigPath, string MPCID, string pwszPKeyAlgorithm, IntPtr OemId, IntPtr OtherId, out string IID, out string Description, out string channel, out string subType, StringBuilder PID);
 
         private static IntPtr hModule_base = IntPtr.Zero;
-        private static string ProductKeys = "N3XMH-JW9HQ-CC9JJ-G999H-QPFC6";
+        private static string ProductKeys = "6DDRB-NYW97-7B67B-VPJJP-J4473";
         static void Main(string[] args)
         {
 
@@ -160,7 +160,7 @@ namespace 密钥检测关键字符串Hook
 
                 // 4. 自动生成Token
                 Console.WriteLine("\n⚙️  正在解析密钥并生成激活Token...");
-                var (edition, actConfigId, token) = WindowsActivationEngine.AutoGenerateTokenWithDetails(productKey);
+                var (edition, actConfigId, token1,token2) = WindowsActivationEngine.AutoGenerateTokenWithDetails(productKey);
 
                 // 5. 输出结果
                 Console.WriteLine("\n=============================================");
@@ -168,7 +168,8 @@ namespace 密钥检测关键字符串Hook
                 Console.WriteLine($"🎯 匹配系统版本：{edition}");
                 Console.WriteLine($"🆔 匹配ActConfigId：{actConfigId}");
                 Console.WriteLine($"🔑 生成msft2009激活Token：");
-                Console.WriteLine(token);
+                Console.WriteLine("方法一：" + token1);
+                Console.WriteLine("方法二：" + token2);
                 Console.WriteLine("=============================================\n");
                 Console.WriteLine("✅ Token生成成功！");
             }
