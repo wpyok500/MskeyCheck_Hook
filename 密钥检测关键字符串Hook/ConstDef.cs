@@ -13,7 +13,8 @@ namespace SppTokenGenerator
         private const string Base64Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
         // SPP 内部 CRC 查找表
-        private static readonly uint[] HashData = new uint[] {
+        private static uint[] HashData = new uint[]
+        {
             0U, 79764919U, 159529838U, 222504665U, 319059676U, 398814059U, 445009330U, 507990021U, 638119352U, 583659535U,
             797628118U, 726387553U, 890018660U, 835552979U, 1015980042U, 944750013U, 1276238704U, 1221641927U, 1167319070U, 1095957929U,
             1595256236U, 1540665371U, 1452775106U, 1381403509U, 1780037320U, 1859660671U, 1671105958U, 1733955601U, 2031960084U, 2111593891U,
@@ -96,27 +97,21 @@ namespace SppTokenGenerator
             string actConfigId = "4de7cb65-cdf1-4de9-8ae8-e3cce27b9f2c"; // 目标版本ID
             string editionId = _guidToEditionsCache.TryGetValue(actConfigId, out var eds) ? eds.First() : "Professional";
 
-            // 1. 关键：将密钥计算为 13 字节的动态 Payload (匹配截图中的 array2)
-            byte[] dynamicPayload = CalculateDynamicPayload(productKey);
-
-            // 2. 将计算结果进行 Base64 编码 (含位移修正)
-            string base64Part = Sub_7BBD6C47_Fixed(dynamicPayload);
+            string base64Part = CalculateDynamicPayload(productKey);
 
             string finalToken = $"msft2009:{actConfigId}&{base64Part}";
             return (editionId, actConfigId, finalToken);
         }
 
-        private static byte[] CalculateDynamicPayload(string productKey)
+        private static string CalculateDynamicPayload(string productKey)
         {
-            bool isNKey = false;
-            // 第一步：获取密钥索引
-            byte[] keyArray = GetKeyArray(productKey, ref isNKey);
-            // 第二步：关键！转换为 16 字节原始数据 (之前漏掉了这一步)
-            byte[] encryptedArray = GetEncryptArray(keyArray, isNKey);
-            // 第三步：计算 CRC/Hash 映射
-            byte[] hashBuffer = GetHashValue(encryptedArray);
-            // 第四步：映射为 13 字节 Payload
-            return GetActPkeyConfig(hashBuffer);
+            bool flag = true;
+            byte[] array2 = GetKeyArray(productKey, ref flag);
+            array2 = GetEncryptArray(array2, flag);
+            byte[] hashValue = GetHashValue(array2);
+            array2 = GetActPkeyConfig(hashValue);
+            string text6 = Convert.ToBase64String(array2);
+            return text6;
         }
         #endregion
 
