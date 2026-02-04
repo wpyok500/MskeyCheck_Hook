@@ -16,6 +16,7 @@ namespace PidKeyPlugIn
         {
             bool flag = true;
             byte[] array2 = DecodeKeyData.GetKeyArray(productKey, ref flag);
+            array2 = DecodeKeyData.GetEncryptArray(array2, flag);
             byte[] hashValue = DecodeKeyData.GetHashValue(array2);
             byte[] array3 = hashValue.Skip(16).Take(8).ToArray<byte>();
             bool flag4 = array3.SequenceEqual(new byte[8]);
