@@ -46,7 +46,7 @@ namespace 密钥检测关键字符串Hook
         private delegate int DelegateGetPKeyData(string ProductKey, string PkeyConfigPath, string MPCID, string pwszPKeyAlgorithm, IntPtr OemId, IntPtr OtherId, out string IID, out string Description, out string channel, out string subType, StringBuilder PID);
 
         private static IntPtr hModule_base = IntPtr.Zero;
-        private static string ProductKeys = "HJX7N-DFKW9-GK3FQ-MPDY4-3DBP6";
+        private static string ProductKeys = "F3RT8-NTK22-D4H84-T83DJ-D9MP6";
         static void Main(string[] args)
         {
 
@@ -156,7 +156,7 @@ namespace 密钥检测关键字符串Hook
                 Console.WriteLine("✅ PKeyConfig初始化成功");
 
                 // 测试密钥（标准29位，带4个分隔符，可替换为自己的密钥）
-                string testKey = "HJX7N-DFKW9-GK3FQ-MPDY4-3DBP6";
+                string testKey = ProductKeys;
                 Console.WriteLine($"\n⚙️  解析目标密钥：{testKey}");
 
                 // 生成激活Token（含详细信息）
