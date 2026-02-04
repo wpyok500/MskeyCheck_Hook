@@ -67,7 +67,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ConstDef.cs" />
+    <Compile Include="WindowsActivationEngine.cs" />
     <Compile Include="FastCall.cs" />
     <Compile Include="Hook.cs" />
     <Compile Include="Hook_API.cs" />
