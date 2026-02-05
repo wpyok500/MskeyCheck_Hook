@@ -46,7 +46,7 @@ class Program
 
     #region 2. Hook核心配置（基址+固定偏移量，全局Hook实例）
 
-    private const int HOOK_OFFSET = 0x2C113; // ← 正确的 push rdi 
+    private const int HOOK_OFFSET = 0x1C113; // ← 正确的 push rdi 
 
     //===================使用asmhook========================
     [UnmanagedFunctionPointer(CallingConvention.Winapi)]
@@ -170,23 +170,45 @@ class Program
          *
          * 原始 RSP = 当前 rsp + 20h + 8*8
          */
+        // 计算需要保护的所有易失寄存器
+        // 注意：x64 下除了 RCX, RDX, R8, R9, 还包括 RAX, R10, R11 和 XMM0-XMM5
         string[] asm =
-        {
-            "use64",
+    {
+        "use64",
+        // --- 1. 保护所有易失性寄存器 ---
+        "push rax",
+        "push rcx",
+        "push rdx",
+        "push r8",
+        "push r9",
+        "push r10",
+        "push r11",
+        
+        // --- 2. 深度栈对齐与环境准备 ---
+        "push rbp",          // 再次备份 RBP (保持 16 字节对齐的尝试)
+        "mov rbp, rsp",      // 使用 RBP 记录当前的栈顶
+        "and rsp, -16",      // 强制 16 字节对齐 (非常重要！)
+        "sub rsp, 20h",      // 预留 Shadow Space (32 字节)
 
-            // 保存会被破坏的寄存器
-            "push rax",
-            "push rcx",
+        // --- 3. 调用托管代码 ---
+        "mov rcx, rdi",      // 将原始 rdi 传给第一个参数 rcx
+        $"mov rax, {_onRdiPtr.ToInt64()}",
+        "call rax",
 
-            // Win64：第一个参数必须放 RCX
-            "mov rcx, rdi",
-            $"mov rax, {_onRdiPtr.ToInt64()}",
-            "call rax",
+        // --- 4. 恢复环境 ---
+        "mov rsp, rbp",      // 通过 RBP 直接还原对齐前的栈指针
+        "pop rbp",
 
-            // 恢复
-            "pop rcx",
-            "pop rax",
-        };
+        // --- 5. 还原寄存器 (严格逆序) ---
+        "pop r11",
+        "pop r10",
+        "pop r9",
+        "pop r8",
+        "pop rdx",
+        "pop rcx",
+        "pop rax"
+    };
+
 
 
         _hooksInstance = new ReloadedHooks();
