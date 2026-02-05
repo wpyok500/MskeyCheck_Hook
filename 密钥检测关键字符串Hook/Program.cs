@@ -59,24 +59,11 @@ class Program
     //===================使用asmhook========================
     private static IAsmHook _asmHook;
     private static ReloadedHooks _hooksInstance;
-    // 修复点1：static readonly 彻底杜绝GC回收委托（原生调用时委托被回收会直接崩溃）
-    private static readonly AsmCallback _callback = OnAsmHit;
     private static IntPtr _callbackPtr;
     private static IntPtr hMod = IntPtr.Zero;
-
-    //托管回调定义（x64 Winapi = fastcall）
-    [UnmanagedFunctionPointer(CallingConvention.Winapi)]
-    public delegate void AsmCallback(IntPtr rdi);
     //===================使用asmhook========================
 
     #endregion
-
-    static IntPtr g_LastMsftPtrAddr;
-    static unsafe void InitNativeStatePtr()
-    {
-        g_LastMsftPtrAddr =
-            (IntPtr)Unsafe.AsPointer(ref NativeState.LastMsftPtr);
-    }
 
     static void Main()
     {
@@ -89,10 +76,6 @@ class Program
 
         try
         {
-            // 1️⃣ 初始化托管回调
-            _callbackPtr = Marshal.GetFunctionPointerForDelegate(_callback);
-            Console.WriteLine($"[+] 托管回调地址: 0x{_callbackPtr.ToInt64():X16}");
-
             // 加载pidgenx.dll并获取基址
             hMod = LoadLibrary("pidgenx.dll");
             if (hMod == IntPtr.Zero)
@@ -105,8 +88,9 @@ class Program
             // 动态计算Hook地址（核心：基址 + 固定偏移量，适配ASLR）
             IntPtr hookAddress = IntPtr.Add(hMod, HOOK_OFFSET);
             Console.WriteLine($"✅ 动态计算Hook实际地址：0x{hookAddress.ToString("X16")}（基址+0x{HOOK_OFFSET:X}）");
-            InitNativeStatePtr();
-            Console.WriteLine($"[+] LastMsftPtr 地址: 0x{g_LastMsftPtrAddr.ToInt64():X16}");
+
+            Console.WriteLine($"[+] LastMsftPtr(native) = 0x{NativeState.LastMsftPtr.ToInt64():X16}");
+
             // 3️⃣ 创建 AsmHook
             InstallAsmHook(hookAddress.ToInt64());
 
@@ -217,26 +201,6 @@ class Program
         Console.WriteLine("[+] AsmHook 激活成功");
     }
 
-    #region 托管回调逻辑
-    private static void OnAsmHit(IntPtr rdi)
-    {
-        // ❗禁止 new / Console.WriteLine / Linq / 异常传播
-        try
-        {
-            if (rdi == IntPtr.Zero) return;
-
-            string s = Marshal.PtrToStringUni(rdi);
-            if (s != null && s.StartsWith("msft2009:"))
-            {
-                Console.WriteLine($"[🎯] {s}");
-            }
-        }
-        catch
-        {
-            // 吞掉异常，绝不能抛回 asm
-        }
-    }
-    #endregion
     static class NativeState
     {
         public static IntPtr LastMsftPtr;
