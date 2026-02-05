@@ -8,6 +8,8 @@ HOOK_API 用.net  Marshal.ReadByte  Marshal.WriteByte 写法
 
 HOOKAPI 用.net unsafe 写法
 
+
 三种写法任意用一种即可 
 
-感谢 空降猫咪、 laomms 的技术指导
+主分支包含算法，2种算法
+分支test5、分支test7，hook完成品，其他分支测试研究用
