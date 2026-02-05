@@ -1,8 +1,10 @@
 ﻿using Reloaded.Hooks;
 using Reloaded.Hooks.Definitions;
-using System;
-using System.Runtime.InteropServices;
+using Reloaded.Hooks.Definitions.Enums;
 using Reloaded.Memory.Utilities;
+using System;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 
 // 移除多余的 Reloaded.Hooks.Definitions 引用（4.3 无需，避免冲突）
@@ -23,7 +25,6 @@ class Program
         int extraFlag
     );
 
-    // 关键：委托恢复原始签名，移除所有FunctionContext相关参数（4.3 无需）
     [UnmanagedFunctionPointer(CallingConvention.Winapi)]
     public unsafe delegate long Sub_7FFBB9DBF60CDelegate(
         IntPtr a1,
@@ -50,19 +51,37 @@ class Program
     #endregion
 
     #region 2. Hook核心配置（基址+固定偏移量，全局Hook实例）
-    private const int HOOK_OFFSET = 0x2F60C; // 你的固定偏移量
-    private static IHook<Sub_7FFBB9DBF60CDelegate> _targetHook; // 4.3 原生IHook，无需额外定义
+
+    private const int HOOK_OFFSET = 0x2F924; // ← 正确的 mov rdi,[rbp-41] // 你的固定偏移量0x2F60C
+
+    //===================使用asmhook========================
+    private static IAsmHook _asmHook;
+    private static ReloadedHooks _hooksInstance;
+    // 修复点1：static readonly 彻底杜绝GC回收委托（原生调用时委托被回收会直接崩溃）
+    private static readonly AsmCallback _callback = OnAsmHit;
+    private static IntPtr _callbackPtr;
+    private static IntPtr hMod = IntPtr.Zero;
+
+    //托管回调定义（x64 Winapi = fastcall）
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)]
+    public delegate void AsmCallback(IntPtr rdi);
+    //===================使用asmhook========================
+
     #endregion
 
     static void Main()
     {
         string productKey = "VD6RP-R2NK7-HBG8F-3DJ8T-KTPKM";
         string pkeyConfigXml = AppDomain.CurrentDomain.BaseDirectory + "pkconfig_winNext.xrm-ms";
-        IntPtr hMod = IntPtr.Zero;
+        hMod = IntPtr.Zero;
         IntPtr pkeyConfigPtr = IntPtr.Zero;
 
         try
         {
+            // 1️⃣ 初始化托管回调
+            _callbackPtr = Marshal.GetFunctionPointerForDelegate(_callback);
+            Console.WriteLine($"[+] 托管回调地址: 0x{_callbackPtr.ToInt64():X16}");
+
             // 加载pidgenx.dll并获取基址
             hMod = LoadLibrary("pidgenx.dll");
             if (hMod == IntPtr.Zero)
@@ -74,10 +93,10 @@ class Program
 
             // 动态计算Hook地址（核心：基址 + 固定偏移量，适配ASLR）
             IntPtr hookAddress = IntPtr.Add(hMod, HOOK_OFFSET);
-            Console.WriteLine($"✅ 动态计算Hook地址：0x{hookAddress.ToString("X16")}（基址+0x{HOOK_OFFSET:X}）");
+            Console.WriteLine($"✅ 动态计算Hook实际地址：0x{hookAddress.ToString("X16")}（基址+0x{HOOK_OFFSET:X}）");
 
-            // 初始化并激活Reloaded.Hooks 4.3（核心适配，无任何未定义类型）
-            InitReloadedHook43(hookAddress);
+            // 3️⃣ 创建 AsmHook
+            InstallAsmHook(hookAddress.ToInt64());
 
             // 初始化GetPKeyData委托，执行原始逻辑
             IntPtr fnGetPKeyData = GetProcAddress(hMod, "GetPKeyData");
@@ -100,7 +119,7 @@ class Program
                 pkeyConfigPtr,
                 null,
                 IntPtr.Zero,
-                1,
+                0,
                 out outBlob,
                 out outStr1,
                 out outStr2,
@@ -136,9 +155,9 @@ class Program
         finally
         {
             // 安全释放所有资源，避免泄漏
-            if (_targetHook != null)
+            if (_asmHook != null && _asmHook.IsEnabled)
             {
-                _targetHook.Disable(); // 禁用Hook
+                _asmHook?.Disable();
                 Console.WriteLine("\n✅ Reloaded.Hooks 4.3 已安全释放");
             }
             if (pkeyConfigPtr != IntPtr.Zero) Marshal.FreeHGlobal(pkeyConfigPtr);
@@ -147,68 +166,87 @@ class Program
             Console.ReadKey();
         }
     }
-
-    #region 3. Reloaded.Hooks 4.3 核心初始化（无任何未定义类型，适配标准API）
-    /// <summary>
-    /// 初始化Reloaded.Hooks 4.3，创建并激活Hook，无任何FunctionContext依赖
-    /// </summary>
-    private static void InitReloadedHook43(IntPtr hookAddress)
+    private static void InstallAsmHook(long hookAddress)
     {
+        /*
+         * 栈布局说明：
+         * - push 8 个非易失寄存器 = 64 字节
+         * - sub rsp, 20h         = shadow space
+         *
+         * 原始 RSP = 当前 rsp + 20h + 8*8
+         */
+        var asm = new[]
+        {
+            "use64",
+
+            // === 保存非易失寄存器 ===
+            "push rbx",
+            "push rbp",
+            "push rdi",
+            "push rsi",
+            "push r12",
+            "push r13",
+            "push r14",
+            "push r15",
+
+            // 对齐栈 + shadow space
+            "sub rsp, 20h",
+
+            // 参数：rcx = rdi
+            "mov rcx, rdi",
+            $"mov rax, {_callbackPtr.ToInt64()}",
+            "call rax",
+
+            "add rsp, 20h",
+
+            // === 恢复寄存器 ===
+            "pop r15",
+            "pop r14",
+            "pop r13",
+            "pop r12",
+            "pop rsi",
+            "pop rdi",
+            "pop rbp",
+            "pop rbx",
+
+        };
+
+
+
+        _hooksInstance = new ReloadedHooks();
+
+        _asmHook = _hooksInstance.CreateAsmHook(
+            asm,
+            hookAddress,
+            AsmHookBehaviour.ExecuteFirst
+        ).Activate();
+
+        Console.WriteLine("[+] AsmHook 激活成功");
+    }
+
+    #region 托管回调逻辑
+    private static void OnAsmHit(IntPtr rdi)
+    {
+        // ❗禁止 new / Console.WriteLine / Linq / 异常传播
         try
         {
-            // Reloaded.Hooks 4.3 标准写法：创建Hook工厂 → 生成Hook实例 → 激活
-            var hookFactory = new ReloadedHooks();
-            _targetHook = hookFactory.CreateHook<Sub_7FFBB9DBF60CDelegate>(
-                Hooked_Sub_7FFBB9DBF60C, // 绑定Hook处理方法
-                hookAddress.ToInt64()     // 动态计算的Hook地址（64位）
-            );
-            //_targetHook.Enable(); // 4.3 激活Hook的标准方法（替代旧版Activate）
-            _targetHook.Activate();
-            if (_targetHook.IsHookActivated)
+            if (rdi == IntPtr.Zero) return;
+
+            string s = Marshal.PtrToStringUni(rdi);
+            if (s != null && s.StartsWith("msft2009:"))
             {
-                Console.WriteLine("✅ Hook激活成功！等待GetPKeyData触发...");
+                Console.WriteLine($"[🎯] {s}");
             }
-            else
-            {
-                Console.WriteLine("❌ Hook激活失败！原因：1. 无管理员权限 2. 地址无效 3. DLL未加载");
-                throw new Exception("Hook激活状态验证失败"); // 主动抛出异常，避免后续无意义执行
-            }
-            Console.WriteLine("✅ Reloaded.Hooks 4.3 Hook初始化并激活成功！");
         }
-        catch (Exception ex)
+        catch
         {
-            Console.WriteLine($"❌ Reloaded.Hooks 4.3 初始化失败：{ex.Message}");
-            throw; // 终止程序，避免Hook失效导致逻辑异常
+            // 吞掉异常，绝不能抛回 asm
         }
     }
-
-    /// <summary>
-    /// Reloaded.Hooks 4.3 标准Hook处理方法（签名与委托完全一致）
-    /// 核心功能：解析lpMem[0]/lpMem[1]、提取rbp-0x41/rdi、过滤msft2009:字符串
-    /// </summary>
-    private static long Hooked_Sub_7FFBB9DBF60C(
-    IntPtr a1,
-    IntPtr a2,
-    IntPtr a3,
-    IntPtr a4,
-    IntPtr lpMem
-)
-    {
-        if (lpMem != IntPtr.Zero)
-        {
-            IntPtr p1 = Marshal.ReadIntPtr(lpMem, IntPtr.Size);
-            string alg = Marshal.PtrToStringUni(p1);
-
-            if (alg != null && alg.Contains("msft2009:"))
-            {
-                Console.WriteLine($"🎯 捕获算法字符串: {alg}");
-            }
-        }
-
-        return _targetHook.OriginalFunction(a1, a2, a3, a4, lpMem);
-    }
-
     #endregion
-
+    static class NativeState
+    {
+        public static long LastMsftPtr;
+    }
 
 }
