@@ -27,14 +27,6 @@ class Program
         int extraFlag
     );
 
-    [UnmanagedFunctionPointer(CallingConvention.Winapi)]
-    public unsafe delegate long Sub_7FFBB9DBF60CDelegate(
-        IntPtr a1,
-        IntPtr a2,
-        IntPtr a3,
-        IntPtr a4,     // volatile int*
-        IntPtr lpMem   // const wchar_t**（核心解析目标）
-    );
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     static extern IntPtr LoadLibrary(string lpFileName);
@@ -54,13 +46,19 @@ class Program
 
     #region 2. Hook核心配置（基址+固定偏移量，全局Hook实例）
 
-    private const int HOOK_OFFSET = 0x2F924; // ← 正确的 mov rdi,[rbp-41] // 你的固定偏移量0x2F60C
+    private const int HOOK_OFFSET = 0x2C113; // ← 正确的 push rdi 
 
     //===================使用asmhook========================
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)]
+    delegate void OnRdiDelegate(IntPtr rdi);
+
     private static IAsmHook _asmHook;
     private static ReloadedHooks _hooksInstance;
     private static IntPtr _callbackPtr;
     private static IntPtr hMod = IntPtr.Zero;
+
+    static readonly OnRdiDelegate _onRdi = OnRdi;
+    static IntPtr _onRdiPtr;
     //===================使用asmhook========================
 
     #endregion
@@ -71,8 +69,8 @@ class Program
         string pkeyConfigXml = AppDomain.CurrentDomain.BaseDirectory + "pkconfig_winNext.xrm-ms";
         hMod = IntPtr.Zero;
         IntPtr pkeyConfigPtr = IntPtr.Zero;
-        NativeState.LastMsftPtr = Marshal.AllocHGlobal(8);
-        Marshal.WriteInt64(NativeState.LastMsftPtr, 0);
+
+        _onRdiPtr = Marshal.GetFunctionPointerForDelegate(_onRdi);
 
         try
         {
@@ -89,7 +87,6 @@ class Program
             IntPtr hookAddress = IntPtr.Add(hMod, HOOK_OFFSET);
             Console.WriteLine($"✅ 动态计算Hook实际地址：0x{hookAddress.ToString("X16")}（基址+0x{HOOK_OFFSET:X}）");
 
-            Console.WriteLine($"[+] LastMsftPtr(native) = 0x{NativeState.LastMsftPtr.ToInt64():X16}");
 
             // 3️⃣ 创建 AsmHook
             InstallAsmHook(hookAddress.ToInt64());
@@ -136,14 +133,7 @@ class Program
             {
                 Console.WriteLine($"\n❌ GetPKeyData执行失败，错误码：0x{hr:X8}");
             }
-            IntPtr msftPtr = Marshal.ReadIntPtr(NativeState.LastMsftPtr);
-
-            if (msftPtr != IntPtr.Zero)
-            {
-                string s = Marshal.PtrToStringUni(msftPtr);
-                Console.WriteLine($"[AdtConfigKeg：] {s}");
-            }
-
+            //AdtConfigKeg：
 
             // 释放GetPKeyData返回的堆内存
             IntPtr heap = GetProcessHeap();
@@ -164,7 +154,7 @@ class Program
                 _asmHook?.Disable();
                 Console.WriteLine("\n✅ Reloaded.Hooks 4.3 已安全释放");
             }
-            Marshal.FreeHGlobal(NativeState.LastMsftPtr);
+
             if (pkeyConfigPtr != IntPtr.Zero) Marshal.FreeHGlobal(pkeyConfigPtr);
             if (hMod != IntPtr.Zero) FreeLibrary(hMod); // 释放DLL句柄
             Console.WriteLine("✅ 所有资源已释放完毕，按任意键退出...");
@@ -180,13 +170,22 @@ class Program
          *
          * 原始 RSP = 当前 rsp + 20h + 8*8
          */
-        var asm = new[]
+        string[] asm =
         {
             "use64",
 
-            // rdi = msft2009 wchar_t*
-            $"mov rax, {NativeState.LastMsftPtr.ToInt64()}",
-            "mov [rax], rdi",
+            // 保存会被破坏的寄存器
+            "push rax",
+            "push rcx",
+
+            // Win64：第一个参数必须放 RCX
+            "mov rcx, rdi",
+            $"mov rax, {_onRdiPtr.ToInt64()}",
+            "call rax",
+
+            // 恢复
+            "pop rcx",
+            "pop rax",
         };
 
 
@@ -201,9 +200,20 @@ class Program
         Console.WriteLine("[+] AsmHook 激活成功");
     }
 
-    static class NativeState
+    static void OnRdi(IntPtr rdi)
     {
-        public static IntPtr LastMsftPtr;
+        // 1️⃣ 永远判空
+        if (rdi == IntPtr.Zero)
+            return;
+
+        // 2️⃣ 只读，不修改
+        string s = Marshal.PtrToStringUni(rdi);
+
+        // 3️⃣ 逻辑尽量轻
+        if (s != null && s.StartsWith("msft2009:"))
+        {
+            Console.WriteLine($"[RDI] {s}");
+        }
     }
 
 }
