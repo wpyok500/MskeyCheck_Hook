@@ -127,10 +127,10 @@ class Program
             if (hr >= 0)
             {
                 Console.WriteLine("\n✅ GetPKeyData执行成功，原始返回结果：");
-                Console.WriteLine($"outStr1: {Marshal.PtrToStringUni(outStr1) ?? "空"}");
-                Console.WriteLine($"outStr2: {Marshal.PtrToStringUni(outStr2) ?? "空"}");
-                Console.WriteLine($"outStr3: {Marshal.PtrToStringUni(outStr3) ?? "空"}");
-                Console.WriteLine($"outBlob: {Marshal.PtrToStringUni(outBlob) ?? "空"}");
+                Console.WriteLine($"outStr1密钥描述: {Marshal.PtrToStringUni(outStr1) ?? "空"}");
+                Console.WriteLine($"outStr2密钥通道: {Marshal.PtrToStringUni(outStr2) ?? "空"}");
+                Console.WriteLine($"outStr3密钥子类型: {Marshal.PtrToStringUni(outStr3) ?? "空"}");
+                Console.WriteLine($"outBlobIID唯一标识: {Marshal.PtrToStringUni(outBlob) ?? "空"}");
             }
             else
             {
