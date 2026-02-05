@@ -8,6 +8,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
+using 密钥检测关键字符串Hook;
 
 // 移除多余的 Reloaded.Hooks.Definitions 引用（4.3 无需，避免冲突）
 class Program
@@ -136,8 +137,11 @@ class Program
             {
                 Console.WriteLine($"\n❌ GetPKeyData执行失败，错误码：0x{hr:X8}");
             }
-            IntPtr msftPtr = Marshal.ReadIntPtr(NativeState.LastMsftPtr);
 
+
+
+            //有多次触发时可用 Timer / Thread 多次读取 NativeState.LastMsftPtr
+            IntPtr msftPtr = Marshal.ReadIntPtr(NativeState.LastMsftPtr);
             if (msftPtr != IntPtr.Zero)
             {
                 string s = Marshal.PtrToStringUni(msftPtr);
@@ -199,11 +203,19 @@ class Program
         ).Activate();
 
         Console.WriteLine("[+] AsmHook 激活成功");
+
+        //如果你只是想拿参数，其实 根本不需要 AsmHook： 用 FunctionHook
+        //_hooks.CreateFunctionHook<GetPKeyDataDelegate>(original, (orig, pk, cfg, sku, cfg2, flags, out b, out s1, out s2, out s3, f2) =>
+        //{
+        //    Console.WriteLine(pk);
+        //    return orig(pk, cfg, sku, cfg2, flags, out b, out s1, out s2, out s3, f2);
+        //});
     }
 
     static class NativeState
     {
         public static IntPtr LastMsftPtr;
     }
+
 
 }
