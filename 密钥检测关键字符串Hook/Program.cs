@@ -54,12 +54,16 @@ class Program
 
     #region 2. Hook核心配置（基址+固定偏移量，全局Hook实例）
 
-    private const int HOOK_OFFSET = 0x2F924; // ← 正确的 mov rdi,[rbp-41] // 你的固定偏移量0x2F60C 
+    private const int HOOK_OFFSET = 0x2F924; // ← 正确的 mov rdi,[rbp-41] // 你的固定偏移量0x2F60C
 
     //===================使用asmhook========================
     private static IAsmHook _asmHook;
-    private static IntPtr hMod = IntPtr.Zero;
     private static ReloadedHooks _hooksInstance;
+    // 修复点1：static readonly 彻底杜绝GC回收委托（原生调用时委托被回收会直接崩溃）
+    private static readonly AsmCallback _callback = OnAsmHit;
+    private static IntPtr _callbackPtr;
+    private static IntPtr hMod = IntPtr.Zero;
+
     //托管回调定义（x64 Winapi = fastcall）
     [UnmanagedFunctionPointer(CallingConvention.Winapi)]
     public delegate void AsmCallback(IntPtr rdi);
@@ -85,6 +89,9 @@ class Program
 
         try
         {
+            // 1️⃣ 初始化托管回调
+            _callbackPtr = Marshal.GetFunctionPointerForDelegate(_callback);
+            Console.WriteLine($"[+] 托管回调地址: 0x{_callbackPtr.ToInt64():X16}");
 
             // 加载pidgenx.dll并获取基址
             hMod = LoadLibrary("pidgenx.dll");
@@ -211,7 +218,24 @@ class Program
     }
 
     #region 托管回调逻辑
+    private static void OnAsmHit(IntPtr rdi)
+    {
+        // ❗禁止 new / Console.WriteLine / Linq / 异常传播
+        try
+        {
+            if (rdi == IntPtr.Zero) return;
 
+            string s = Marshal.PtrToStringUni(rdi);
+            if (s != null && s.StartsWith("msft2009:"))
+            {
+                Console.WriteLine($"[🎯] {s}");
+            }
+        }
+        catch
+        {
+            // 吞掉异常，绝不能抛回 asm
+        }
+    }
     #endregion
     static class NativeState
     {
