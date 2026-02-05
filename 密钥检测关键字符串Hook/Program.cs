@@ -141,7 +141,7 @@ class Program
             if (msftPtr != IntPtr.Zero)
             {
                 string s = Marshal.PtrToStringUni(msftPtr);
-                Console.WriteLine($"[🎯] {s}");
+                Console.WriteLine($"[AdtConfigKeg：] {s}");
             }
 
 
