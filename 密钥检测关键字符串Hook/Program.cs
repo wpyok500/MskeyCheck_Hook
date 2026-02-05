@@ -4,8 +4,10 @@ using Reloaded.Hooks.Definitions.Enums;
 using Reloaded.Memory.Utilities;
 using System;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 
 // 移除多余的 Reloaded.Hooks.Definitions 引用（4.3 无需，避免冲突）
 class Program
@@ -52,16 +54,12 @@ class Program
 
     #region 2. Hook核心配置（基址+固定偏移量，全局Hook实例）
 
-    private const int HOOK_OFFSET = 0x2F924; // ← 正确的 mov rdi,[rbp-41] // 你的固定偏移量0x2F60C
+    private const int HOOK_OFFSET = 0x2F924; // ← 正确的 mov rdi,[rbp-41] // 你的固定偏移量0x2F60C 
 
     //===================使用asmhook========================
     private static IAsmHook _asmHook;
-    private static ReloadedHooks _hooksInstance;
-    // 修复点1：static readonly 彻底杜绝GC回收委托（原生调用时委托被回收会直接崩溃）
-    private static readonly AsmCallback _callback = OnAsmHit;
-    private static IntPtr _callbackPtr;
     private static IntPtr hMod = IntPtr.Zero;
-
+    private static ReloadedHooks _hooksInstance;
     //托管回调定义（x64 Winapi = fastcall）
     [UnmanagedFunctionPointer(CallingConvention.Winapi)]
     public delegate void AsmCallback(IntPtr rdi);
@@ -69,18 +67,24 @@ class Program
 
     #endregion
 
+    static IntPtr g_LastMsftPtrAddr;
+    static unsafe void InitNativeStatePtr()
+    {
+        g_LastMsftPtrAddr =
+            (IntPtr)Unsafe.AsPointer(ref NativeState.LastMsftPtr);
+    }
+
     static void Main()
     {
         string productKey = "VD6RP-R2NK7-HBG8F-3DJ8T-KTPKM";
         string pkeyConfigXml = AppDomain.CurrentDomain.BaseDirectory + "pkconfig_winNext.xrm-ms";
         hMod = IntPtr.Zero;
         IntPtr pkeyConfigPtr = IntPtr.Zero;
+        NativeState.LastMsftPtr = Marshal.AllocHGlobal(8);
+        Marshal.WriteInt64(NativeState.LastMsftPtr, 0);
 
         try
         {
-            // 1️⃣ 初始化托管回调
-            _callbackPtr = Marshal.GetFunctionPointerForDelegate(_callback);
-            Console.WriteLine($"[+] 托管回调地址: 0x{_callbackPtr.ToInt64():X16}");
 
             // 加载pidgenx.dll并获取基址
             hMod = LoadLibrary("pidgenx.dll");
@@ -94,7 +98,8 @@ class Program
             // 动态计算Hook地址（核心：基址 + 固定偏移量，适配ASLR）
             IntPtr hookAddress = IntPtr.Add(hMod, HOOK_OFFSET);
             Console.WriteLine($"✅ 动态计算Hook实际地址：0x{hookAddress.ToString("X16")}（基址+0x{HOOK_OFFSET:X}）");
-
+            InitNativeStatePtr();
+            Console.WriteLine($"[+] LastMsftPtr 地址: 0x{g_LastMsftPtrAddr.ToInt64():X16}");
             // 3️⃣ 创建 AsmHook
             InstallAsmHook(hookAddress.ToInt64());
 
@@ -140,6 +145,14 @@ class Program
             {
                 Console.WriteLine($"\n❌ GetPKeyData执行失败，错误码：0x{hr:X8}");
             }
+            IntPtr msftPtr = Marshal.ReadIntPtr(NativeState.LastMsftPtr);
+
+            if (msftPtr != IntPtr.Zero)
+            {
+                string s = Marshal.PtrToStringUni(msftPtr);
+                Console.WriteLine($"[🎯] {s}");
+            }
+
 
             // 释放GetPKeyData返回的堆内存
             IntPtr heap = GetProcessHeap();
@@ -160,6 +173,7 @@ class Program
                 _asmHook?.Disable();
                 Console.WriteLine("\n✅ Reloaded.Hooks 4.3 已安全释放");
             }
+            Marshal.FreeHGlobal(NativeState.LastMsftPtr);
             if (pkeyConfigPtr != IntPtr.Zero) Marshal.FreeHGlobal(pkeyConfigPtr);
             if (hMod != IntPtr.Zero) FreeLibrary(hMod); // 释放DLL句柄
             Console.WriteLine("✅ 所有资源已释放完毕，按任意键退出...");
@@ -179,38 +193,10 @@ class Program
         {
             "use64",
 
-            // === 保存非易失寄存器 ===
-            "push rbx",
-            "push rbp",
-            "push rdi",
-            "push rsi",
-            "push r12",
-            "push r13",
-            "push r14",
-            "push r15",
-
-            // 对齐栈 + shadow space
-            "sub rsp, 20h",
-
-            // 参数：rcx = rdi
-            "mov rcx, rdi",
-            $"mov rax, {_callbackPtr.ToInt64()}",
-            "call rax",
-
-            "add rsp, 20h",
-
-            // === 恢复寄存器 ===
-            "pop r15",
-            "pop r14",
-            "pop r13",
-            "pop r12",
-            "pop rsi",
-            "pop rdi",
-            "pop rbp",
-            "pop rbx",
-
+            // rdi = msft2009 wchar_t*
+            $"mov rax, {NativeState.LastMsftPtr.ToInt64()}",
+            "mov [rax], rdi",
         };
-
 
 
         _hooksInstance = new ReloadedHooks();
@@ -225,28 +211,11 @@ class Program
     }
 
     #region 托管回调逻辑
-    private static void OnAsmHit(IntPtr rdi)
-    {
-        // ❗禁止 new / Console.WriteLine / Linq / 异常传播
-        try
-        {
-            if (rdi == IntPtr.Zero) return;
 
-            string s = Marshal.PtrToStringUni(rdi);
-            if (s != null && s.StartsWith("msft2009:"))
-            {
-                Console.WriteLine($"[🎯] {s}");
-            }
-        }
-        catch
-        {
-            // 吞掉异常，绝不能抛回 asm
-        }
-    }
     #endregion
     static class NativeState
     {
-        public static long LastMsftPtr;
+        public static IntPtr LastMsftPtr;
     }
 
 }
