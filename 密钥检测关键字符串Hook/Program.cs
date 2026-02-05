@@ -52,7 +52,7 @@ class Program
 
     #region 2. Hook核心配置（基址+固定偏移量，全局Hook实例）
 
-    private const int HOOK_OFFSET = 0x2F924; // ← 正确的 mov rdi,[rbp-41] // 你的固定偏移量0x2F60C
+    private const int HOOK_OFFSET = 0x2F9D1; //0x2F924; // ← 正确的 mov rdi,[rbp-41] // 你的固定偏移量0x2F60C
 
     //===================使用asmhook========================
     private static IAsmHook _asmHook;
