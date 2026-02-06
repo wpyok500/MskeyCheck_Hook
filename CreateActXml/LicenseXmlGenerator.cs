@@ -777,6 +777,7 @@ namespace CreateActXml
                 UpdatePresetClaimsTime();
 
                 var is2005Version = productKeyActConfigId.Contains("2005");
+                is2005Version=false;
                 var isWindowsProduct = productDescription.IndexOf("Win", StringComparison.OrdinalIgnoreCase) >= 0;
                 var serviceConfig = is2005Version ? (isWindowsProduct ? VersionedActivationConfig.Win2005 : VersionedActivationConfig.Office2005) : null;
 
