@@ -16,8 +16,8 @@ namespace CreateActXml
 
                 // 同步调用
                 string productKey = "GC6HC-JQ8YG-8WY69-Y338J-GXWP3";
-                string productDesc = "Windows 7 Professional OEM:COA"; // 产品描述：Win/Office/Win 10 RTM等
-                string configId = "msft2005:da22eadd-46dc-4056-a287-f5041c852470&ljvx1q8BAAAAAAAA"; // 2005/2009配置ID
+                string productDesc = "Windows 7 Professional OEM:COA"; 
+                string configId = "msft2005:da22eadd-46dc-4056-a287-f5041c852470&ljvx1q8BAAAAAAAA";
                 string hResult = ProductActivationApi.GetActivationHResult(productKey, productDesc, configId);
                 Console.WriteLine("激活错误码：" + hResult);
 

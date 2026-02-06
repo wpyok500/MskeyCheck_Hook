@@ -264,9 +264,19 @@ namespace CreateActXml
                 switch (xmlKey)
                 {
                     case "Win2005RACSPCCert":
-                        return @"<r:license licenseId=""{ff3f7a7a-66ab-4773-9012-b17e8e9c02c9}"" xmlns:r=""urn:mpeg:mpeg21:2003:01-REL-R-NS""><r:grant><r:principal><r:id>Everyone</r:id></r:principal><r:rights><r:play/><r:export/><r:extract/><r:execute/><r:display/></r:rights></r:grant><r:issuer><r:name>Microsoft Corporation</r:name><r:contact>Microsoft Activation Server</r:contact><r:url>https://activation.sls.microsoft.com</r:url></r:issuer><r:metaData><r:property name=""Microsoft-SL-ProductFamily"">Windows</r:property><r:property name=""Microsoft-SL-Version"">6.0</r:property><r:property name=""Microsoft-SL-Type"">SPC</r:property></r:metaData></r:license>";
-                    case "Office2005RACSPCCert":
-                        return @"<r:license licenseId=""{4ec22b2b-ea82-482a-9e1d-7cadb1617584}"" xmlns:r=""urn:mpeg:mpeg21:2003:01-REL-R-NS""><r:grant><r:principal><r:id>Everyone</r:id></r:principal><r:rights><r:play/><r:export/><r:extract/><r:execute/><r:display/></r:rights></r:grant><r:issuer><r:name>Microsoft Corporation</r:name><r:contact>Microsoft Activation Server</r:contact><r:url>https://activation.sls.microsoft.com</r:url></r:issuer><r:metaData><r:property name=""Microsoft-SL-ProductFamily"">Office</r:property><r:property name=""Microsoft-SL-Version"">12.0</r:property><r:property name=""Microsoft-SL-Type"">SPC</r:property></r:metaData></r:license>";
+                        // 修复：移除硬编码证书，改为{0}占位符，动态填入真实证书
+                        return @"<r:license licenseId=""{ff3f7a7a-66ab-4773-9012-b17e8e9c02c9}""
+                            xmlns:r=""urn:mpeg:mpeg21:2003:01-REL-R-NS""><r:title>XrML 2.1 License - {msft:sl/SPC/ACTIVATED/PUBLIC}</r:title><r:grant><r:keyHolder licensePartId=""SPCKey""><r:info><KeyValue
+                            xmlns=""http://www.w3.org/2000/09/xmldsig#""><RSAKeyValue><Modulus>sxuUhu5dN2f24E/JqlZmWRiXUGa4TLKxTV309kbz/D7QG4VtF+jo9v0MU6l1jKR6onJacWf/GE40V70Wa+aqHXuBWHwg3dK2qtigRYwVfcefjMahwApydfyxYXOKkFgJ3/hZluZqRoyV/TExOnxySUnOd0c5sP/2RnlRT89OlgE=</Modulus><Exponent>AQAB</Exponent></RSAKeyValue></KeyValue></r:info></r:keyHolder><r:possessProperty /><securityProcessor licensePartId=""SPData""
+                            xmlns=""http://www.microsoft.com/DRM/XrML2/TM/v2""><tm:assurance
+                            xmlns:tm=""http://www.microsoft.com/DRM/XrML2/TM/v2"">urn:msft:sl/Assurance/SLS-Default/1.0</tm:assurance></securityProcessor></r:grant><r:issuer><Signature
+                            xmlns=""http://www.w3.org/2000/09/xmldsig#""><SignedInfo><CanonicalizationMethod Algorithm=""http://www.microsoft.com/xrml/lwc14n"" /><SignatureMethod Algorithm=""http://www.w3.org/2000/09/xmldsig#rsa-sha1"" /><Reference><Transforms><Transform Algorithm=""urn:mpeg:mpeg21:2003:01-REL-R-NS:licenseTransform"" /><Transform Algorithm=""http://www.microsoft.com/xrml/lwc14n"" /></Transforms><DigestMethod Algorithm=""http://www.w3.org/2000/09/xmldsig#sha1"" /><DigestValue>hi73VcB9nWvh1YpOBpfgPGrUDz8=</DigestValue></Reference></SignedInfo><SignatureValue>mHhLZj5RYUBrD0924Gswrm8paSMxuYoGgW9RtwTgdNkZynKS0G+MykyzIT+sU6YPoa8dvGeQs897ppUbX+7Piwrn/nvVi1fT37kXOyQlEWWJ8bKYw6AFm30aGBq3Zzkr6mTXQr8WrSuQFSLYJhxZxYopQxo+9S+6wd+mLmFtqQMC3Ose05CX005wzx6Y7Q/4XVB9llzftkC1IQwx+UopuCG1+/Ns4xRJDZ3+GQkwEnBcW+xvNaucAWUekSdJeBc5b/qEFbDk7eBPPqxXA4l8rLb6iBXmtXFs9WNmVsQ9ToxAHDoZf0jDUHEgz/oEPbGF9V2M6MesIC3Ws9bZ12DdQw==</SignatureValue><KeyInfo><KeyValue><RSAKeyValue><Modulus>5peib3RqV+TBpGM5w4CSa1AhjLCMvjvxnQXlG7N5N7SyE3LDVtPr0zOjm0XSEZVU14Lw7c/Y/kVWhpUD6ONv4sDeR95w7eHskZGIOn36jSuV7I8tuDDaRbXDi8Ou0LH8XCqcjESjSD5JICStYuBg4tUdSYlH1pCXdcPGtFdLiKNUWr91svU7fWswEI75qUHMMvXDTousBPnqzkAMae0BVTkhJE1g2ICMNlyKoCdAzXGcx6M9a4oITjqWXgw078um4SEr1OWhzltJU97FG17q8W46ROHaufsmsb0LDLiqJj1VOP411l8MyQkeQQyUTQG6YfvSNe9XZTbW05xOEzLLPw==</Modulus><Exponent>AQAB</Exponent></RSAKeyValue></KeyValue></KeyInfo></Signature><r:details><r:timeOfIssue>2019-09-27T00:59:19Z</r:timeOfIssue></r:details></r:issuer><r:otherInfo><tm:infoTables
+                            xmlns:tm=""http://www.microsoft.com/DRM/XrML2/TM/v2""><tm:infoList tag=""#global""><tm:infoStr name=""licenseType"">msft:sl/SPC/ACTIVATED/PUBLIC</tm:infoStr><tm:infoStr name=""licenseVersion"">2.0</tm:infoStr><tm:infoStr name=""licensorUrl"">http://licensing.microsoft.com</tm:infoStr><tm:infoStr name=""licenseCategory"">msft:sl/SPC/ACTIVATED/PUBLIC</tm:infoStr><tm:infoStr name=""issuanceCertificateId"">{57d6dc1b-f556-4f5b-935b-3b379fd9dda8}</tm:infoStr><tm:infoStr name=""sysprepAction"">rearm</tm:infoStr><tm:infoStr name=""spcActivationGroup"">msft:Windows/6.0/SPC/Retail</tm:infoStr><tm:infoStr name=""privateCertificateId"">{d06c1420-6d9d-4e7f-99cf-7f5ee7500b3b}</tm:infoStr></tm:infoList></tm:infoTables></r:otherInfo></r:license>";
+
+                    //case "Win2005RACSPCCert":
+                    // return @"<r:license licenseId=""{ff3f7a7a-66ab-4773-9012-b17e8e9c02c9}"" xmlns:r=""urn:mpeg:mpeg21:2003:01-REL-R-NS""><r:grant><r:principal><r:id>Everyone</r:id></r:principal><r:rights><r:play/><r:export/><r:extract/><r:execute/><r:display/></r:rights></r:grant><r:issuer><r:name>Microsoft Corporation</r:name><r:contact>Microsoft Activation Server</r:contact><r:url>https://activation.sls.microsoft.com</r:url></r:issuer><r:metaData><r:property name=""Microsoft-SL-ProductFamily"">Windows</r:property><r:property name=""Microsoft-SL-Version"">6.0</r:property><r:property name=""Microsoft-SL-Type"">SPC</r:property></r:metaData></r:license>";
+                    //case "Office2005RACSPCCert":
+                    //    return @"<r:license licenseId=""{4ec22b2b-ea82-482a-9e1d-7cadb1617584}"" xmlns:r=""urn:mpeg:mpeg21:2003:01-REL-R-NS""><r:grant><r:principal><r:id>Everyone</r:id></r:principal><r:rights><r:play/><r:export/><r:extract/><r:execute/><r:display/></r:rights></r:grant><r:issuer><r:name>Microsoft Corporation</r:name><r:contact>Microsoft Activation Server</r:contact><r:url>https://activation.sls.microsoft.com</r:url></r:issuer><r:metaData><r:property name=""Microsoft-SL-ProductFamily"">Office</r:property><r:property name=""Microsoft-SL-Version"">12.0</r:property><r:property name=""Microsoft-SL-Type"">SPC</r:property></r:metaData></r:license>";
                     case "Win2005EULSPCCert":
                         return @"<r:license licenseId=""{ff3f7a7a-66ab-4773-9012-b17e8e9c02c9}"" xmlns:r=""urn:mpeg:mpeg21:2003:01-REL-R-NS""><r:grant><r:principal><r:id>Everyone</r:id></r:principal><r:rights><r:play/><r:export/><r:extract/><r:execute/><r:display/></r:rights></r:grant><r:issuer><r:name>Microsoft Corporation</r:name><r:contact>Microsoft Activation Server</r:contact><r:url>https://activation.sls.microsoft.com</r:url></r:issuer><r:metaData><r:property name=""Microsoft-SL-ProductFamily"">Windows</r:property><r:property name=""Microsoft-SL-Version"">6.0</r:property><r:property name=""Microsoft-SL-Type"">SPC</r:property></r:metaData></r:license>";
                     case "Win2005EULRACCert":
@@ -284,8 +294,8 @@ namespace CreateActXml
                         </rg:licenseGroup>";
                     case "Office2005EULSPCCert":
                         return @"<r:license licenseId=""{4ec22b2b-ea82-482a-9e1d-7cadb1617584}"" xmlns:r=""urn:mpeg:mpeg21:2003:01-REL-R-NS""><r:grant><r:principal><r:id>Everyone</r:id></r:principal><r:rights><r:play/><r:export/><r:extract/><r:execute/><r:display/></r:rights></r:grant><r:issuer><r:name>Microsoft Corporation</r:name><r:contact>Microsoft Activation Server</r:contact><r:url>https://activation.sls.microsoft.com</r:url></r:issuer><r:metaData><r:property name=""Microsoft-SL-ProductFamily"">Office</r:property><r:property name=""Microsoft-SL-Version"">12.0</r:property><r:property name=""Microsoft-SL-Type"">SPC</r:property></r:metaData></r:license>";
-                    case "Office2005EULRACCert":
-                        return @"<r:license licenseId=""{eb01bf54-a963-49e3-84a5-937186cb945a}"" xmlns:r=""urn:mpeg:mpeg21:2003:01-REL-R-NS""><r:grant><r:principal><r:id>Everyone</r:id></r:principal><r:rights><r:bind/><r:certify/><r:activate/></r:rights></r:grant><r:issuer><r:name>Microsoft Corporation</r:name><r:contact>Microsoft Activation Server</r:contact><r:url>https://activation.sls.microsoft.com</r:url></r:issuer><r:metaData><r:property name=""Microsoft-SL-ProductFamily"">Office</r:property><r:property name=""Microsoft-SL-Version"">12.0</r:property><r:property name=""Microsoft-SL-Type"">RAC</r:property></r:metaData></r:license>";
+                    //case "Office2005EULRACCert":
+                    //    return @"<r:license licenseId=""{eb01bf54-a963-49e3-84a5-937186cb945a}"" xmlns:r=""urn:mpeg:mpeg21:2003:01-REL-R-NS""><r:grant><r:principal><r:id>Everyone</r:id></r:principal><r:rights><r:bind/><r:certify/><r:activate/></r:rights></r:grant><r:issuer><r:name>Microsoft Corporation</r:name><r:contact>Microsoft Activation Server</r:contact><r:url>https://activation.sls.microsoft.com</r:url></r:issuer><r:metaData><r:property name=""Microsoft-SL-ProductFamily"">Office</r:property><r:property name=""Microsoft-SL-Version"">12.0</r:property><r:property name=""Microsoft-SL-Type"">RAC</r:property></r:metaData></r:license>";
                     case "Office2005EULPKCCert":
                         return @"<r:license licenseId=""{bdd6d3f9-3206-42e4-a8d3-d50ba181c5ff}"" xmlns:r=""urn:mpeg:mpeg21:2003:01-REL-R-NS""><r:grant><r:principal><r:id>Everyone</r:id></r:principal><r:rights><r:validate/><r:certify/><r:activate/></r:rights></r:grant><r:issuer><r:name>Microsoft Corporation</r:name><r:contact>Microsoft Activation Server</r:contact><r:url>https://activation.sls.microsoft.com</r:url></r:issuer><r:metaData><r:property name=""Microsoft-SL-ProductFamily"">Office</r:property><r:property name=""Microsoft-SL-Version"">12.0</r:property><r:property name=""Microsoft-SL-Type"">PKC</r:property></r:metaData></r:license>";
                     case "Office2005EULPublishLicense":
@@ -294,15 +304,7 @@ namespace CreateActXml
                     case "Office2009PublishLicense":
                         return @"<?xml version=""1.0"" encoding=""utf-8""?><rg:licenseGroup xmlns:rg=""urn:mpeg:mpeg21:2003:01-REL-R-NS""><r:license xmlns:r=""urn:mpeg:mpeg21:2003:01-REL-R-NS"" licenseId=""{7c6134e6-409c-47ed-a9b5-514c983557a0}"" xmlns:sx=""urn:mpeg:mpeg21:2003:01-REL-SX-NS"" xmlns:mx=""urn:mpeg:mpeg21:2003:01-REL-MX-NS"" xmlns:sl=""http://www.microsoft.com/DRM/XrML2/SL/v2"" xmlns:tm=""http://www.microsoft.com/DRM/XrML2/TM/v2""><r:title>Office 16 Publishing License (Public)</r:title><r:grant><r:forAll varName=""productId""><r:anXmlExpression>/sl:productId/sl:pid</r:anXmlExpression></r:forAll><r:forAll varName=""binding""></r:forAll><r:keyHolder><r:info><KeyValue xmlns=""http://www.w3.org/2000/09/xmldsig#""><RSAKeyValue><Modulus>uzDfZ3WsHY4/UKthrglDqsLw4BqrlOWlNdLBnLD/5sdAUXnv+2kB9jJJPK2TYkbkQ5bfK4QfS8h050WPtpN/NGL7batTKnEjNnRNrenM8+YAT9Ne7K7xCwgJdb08rOZyMqQPKtPr1p6FCwPY7zBvOmtNdvVs0psxwEuq2DmFz1g8+WJw9zGgqI4qkYA7P/yaN0lbQpvH3p1v68DogX7BLd6Z+Z+3MNG1Lh+k11kmd+lM8RaLq74zT8OSZDJ9McD9i/4JaB0kJfdV5oGb0ZbWvW/3Z8pQVf7tA5s3J1Tpp3/nrvV5WtZMZ3nGemTFRP5dxbH5y4YSBoKFGOYCyQH3pQ==</Modulus><Exponent>AQAB</Exponent></RSAKeyValue></KeyValue></r:info></r:keyHolder><r:issue/><r:grant><r:forAll varName=""application""><r:anXmlExpression>editionId[@value="""" or @value=""Office16ProPlusMSDNR_Retail""]</r:anXmlExpression></r:forAll><r:forAll varName=""appid""><r:propertyPossessor><tm:application varRef=""application""/><r:trustedRootIssuers><r:keyHolder><r:info><KeyValue xmlns=""http://www.w3.org/2000/09/xmldsig#""><RSAKeyValue><Modulus>lAi6wXhcWOjn1rN1aIy6z4YBcYlkdrxP9EEw7iiD0tg6i0aVOgZ/FS6IxiOgZXYwTgK/BHA7QN6/lvxnecZ2cETT7w7ZRByGUN1zTQKFwXdyQz/xdp5kZ81bmI3EQWLJBT6iW5K8HZr0qRsQRlExUrWZSOI449+Br2QgOMcBMS3FEMBS8XCBPgZ3z/V9ydztWjhopBB0ZngebWEjqwtlrXEB1M+WOPWUcljdJlp5pXNkiqCrJEzenMJ+tfTfD/8zv08LdhhIAmx1VLViItRqO9OD7l313X7bVyfTWTxGmf7D9YS5Sa0UCiOXM0qVZCVuQ5CzjLRLa13FaJurQ6SBhQ==</Modulus><Exponent>AQAB</Exponent></RSAKeyValue></KeyValue></r:info></r:keyHolder></r:trustedRootIssuers></r:propertyPossessor></r:forAll><r:keyHolder><r:info><KeyValue xmlns=""http://www.w3.org/2000/09/xmldsig#""><RSAKeyValue><Modulus>ptV5l33YkYwdOV/Ru16t2VcbVg92rhNO1ng3kIn/AY/c/HlfUuVxwR4F4F3JoxbDQ4wiNf1QwQaAJdl/1pHy0iY3Hb60KLMuqOb4/C2EsICU2cOuhVxgVIoM+aqEkkFHyUx1E6+TbCSAvv0PQR7ns6h9CLlXPHZ6w6P8s0L/rAs=</Modulus><Exponent>AQAB</Exponent></RSAKeyValue></KeyValue></r:info></r:keyHolder><sl:runSoftware/><sl:appId varRef=""appid""/><r:allConditions><r:allConditions><sl:productPolicies xmlns:sl=""http://www.microsoft.com/DRM/XrML2/SL/v2""><sl:priority>400</sl:priority><sl:policyStr name=""Security-SPP-Reserved-ProductUniquenessGroupID"">05DC53C7-C5BE-4D6B-9A3E-1984B2E7F47C</sl:policyStr><sl:policyStr name=""Security-SPP-Reserved-Family"" attributes=""override-only"">Office16ProPlusMSDNR_Retail</sl:policyStr></sl:productPolicies><sl:proxyExecutionKey xmlns:sl=""http://www.microsoft.com/DRM/XrML2/SL/v2""></sl:proxyExecutionKey></r:allConditions><mx:renderer><sl:binding varRef=""binding""/><sl:productId varRef=""productId""/></mx:renderer></r:allConditions></r:grant><r:allConditions><sl:businessRules xmlns:sl=""http://www.microsoft.com/DRM/XrML2/SL/v2""></sl:businessRules></r:allConditions></r:grant><r:issuer><Signature xmlns=""http://www.w3.org/2000/09/xmldsig#""><SignedInfo><CanonicalizationMethod Algorithm=""http://www.microsoft.com/xrml/lwc14n""/><SignatureMethod Algorithm=""http://www.w3.org/2000/09/xmldsig#rsa-sha1""/><Reference><Transforms><Transform Algorithm=""urn:mpeg:mpeg21:2003:01-REL-R-NS:licenseTransform""/><Transform Algorithm=""http://www.microsoft.com/xrml/lwc14n""/></Transforms><DigestMethod Algorithm=""http://www.w3.org/2000/09/xmldsig#sha1""/><DigestValue>TtnlPLgMGSKY+gXlVPTp9bLmY9U=</DigestValue></Reference></SignedInfo><SignatureValue>DcPeLWssKlnrpLhnt5r+v1SSSzTvaiLPMk9DZHsKFcq7wD7umhzIw6+BnasQK20EvfZkXbQtzskBjRsZ+DXxUgp4F/CGTk7bWRDN//XQOHOP1BPyVhNVylcqjQw3K7ZKVtsbWDpzOskp9Rc28mh/XUhKyMyueFpFeKGhC7pbwMi0pk0JcFEyCwbiCYTYx9bCSipKx1JI5DpSfCZdql6X7JOsdiTjQYVvcLzkstwWmc2OCZgZexMdPB7Td5f3YR6kHfFOXP9Q7EIxsCXgDMw1L1VpJwOtXnCX/qntd9Z2XvilFv6CtJetndKafZEBzyz+997l6Iv9pL5cqs62TwhSPw==</SignatureValue><KeyInfo><KeyValue><RSAKeyValue><Modulus>lAi6wXhcWOjn1rN1aIy6z4YBcYlkdrxP9EEw7iiD0tg6i0aVOgZ/FS6IxiOgZXYwTgK/BHA7QN6/lvxnecZ2cETT7w7ZRByGUN1zTQKFwXdyQz/xdp5kZ81bmI3EQWLJBT6iW5K8HZr0qRsQRlExUrWZSOI449+Br2QgOMcBMS3FEMBS8XCBPgZ3z/V9ydztWjhopBB0ZngebWEjqwtlrXEB1M+WOPWUcljdJlp5pXNkiqCrJEzenMJ+tfTfD/8zv08LdhhIAmx1VLViItRqO9OD7l313X7bVyfTWTxGmf7D9YS5Sa0UCiOXM0qVZCVuQ5CzjLRLa13FaJurQ6SBhQ==</Modulus><Exponent>AQAB</Exponent></RSAKeyValue></KeyValue></KeyInfo></Signature><r:details><r:timeOfIssue>2018-06-27T23:08:05Z</r:timeOfIssue></r:details></r:issuer><r:otherInfo xmlns:r=""urn:mpeg:mpeg21:2003:01-REL-R-NS""><tm:infoTables xmlns:tm=""http://www.microsoft.com/DRM/XrML2/TM/v2""><tm:infoList tag=""#global""><tm:infoStr name=""licenseType"">msft:sl/PL/GENERIC/PUBLIC</tm:infoStr><tm:infoStr name=""licenseVersion"">2.0</tm:infoStr><tm:infoStr name=""licensorUrl"">https://licensing.microsoft.com</tm:infoStr><tm:infoStr name=""licenseCategory"">msft:sl/PL/GENERIC/PUBLIC</tm:infoStr><tm:infoStr name=""productSkuId"">{84832881-46EF-4124-8ABC-EB493CDCF78E}</tm:infoStr><tm:infoStr name=""privateCertificateId"">{997cb5ed-bf97-40c8-857a-19945436aa99}</tm:infoStr><tm:infoStr name=""applicationId"">{0ff1ce15-a989-479d-af46-f275c6370663}</tm:infoStr><tm:infoStr name=""productName"">Office 16, Office16ProPlusMSDNR_Retail edition</tm:infoStr><tm:infoStr name=""Family"">Office16ProPlusMSDNR_Retail</tm:infoStr><tm:infoStr name=""productAuthor"">Microsoft Corporation</tm:infoStr><tm:infoStr name=""productDescription"">Office 16</tm:infoStr><tm:infoStr name=""clientIssuanceCertificateId"">{CE939C0E-53F7-4011-A286-78B6975FA5F0}</tm:infoStr><tm:infoStr name=""hwid:ootGrace"">3</tm:infoStr><tm:infoStr name=""migratable"">true</tm:infoStr><tm:infoStr name=""referralData"">ReferralId=000000;PartnerId=00000000-0000-0000-0000-000000000000</tm:infoStr></tm:infoList></tm:infoTables></r:otherInfo></r:license><r:license xmlns:r=""urn:mpeg:mpeg21:2003:01-REL-R-NS"" licenseId=""{997cb5ed-bf97-40c8-857a-19945436aa99}"" xmlns:sx=""urn:mpeg:mpeg21:2003:01-REL-SX-NS"" xmlns:mx=""urn:mpeg:mpeg21:2003:01-REL-MX-NS"" xmlns:sl=""http://www.microsoft.com/DRM/XrML2/SL/v2"" xmlns:tm=""http://www.microsoft.com/DRM/XrML2/TM/v2""><r:title>Office 16 Publishing License (Private)</r:title><r:grant><r:keyHolder><r:info><KeyValue xmlns=""http://www.w3.org/2000/09/xmldsig#""><RSAKeyValue><Modulus>uzDfZ3WsHY4/UKthrglDqsLw4BqrlOWlNdLBnLD/5sdAUXnv+2kB9jJJPK2TYkbkQ5bfK4QfS8h050WPtpN/NGL7batTKnEjNnRNrenM8+YAT9Ne7K7xCwgJdb08rOZyMqQPKtPr1p6FCwPY7zBvOmtNdvVs0psxwEuq2DmFz1g8+WJw9zGgqI4qkYA7P/yaN0lbQpvH3p1v68DogX7BLd6Z+Z+3MNG1Lh+k11kmd+lM8RaLq74zT8OSZDJ9McD9i/4JaB0kJfdV5oGb0ZbWvW/3Z8pQVf7tA5s3J1Tpp3/nrvV5WtZMZ3nGemTFRP5dxbH5y4YSBoKFGOYCyQH3pQ==</Modulus><Exponent>AQAB</Exponent></RSAKeyValue></KeyValue></r:info></r:keyHolder><r:issue/><r:grant><r:forAll varName=""anyRight""></r:forAll><r:forAll varName=""appid""></r:forAll><r:keyHolder><r:info><KeyValue xmlns=""http://www.w3.org/2000/09/xmldsig#""><RSAKeyValue><Modulus>ptV5l33YkYwdOV/Ru16t2VcbVg92rhNO1ng3kIn/AY/c/HlfUuVxwR4F4F3JoxbDQ4wiNf1QwQaAJdl/1pHy0iY3Hb60KLMuqOb4/C2EsICU2cOuhVxgVIoM+aqEkkFHyUx1E6+TbCSAvv0PQR7ns6h9CLlXPHZ6w6P8s0L/rAs=</Modulus><Exponent>AQAB</Exponent></RSAKeyValue></KeyValue></r:info></r:keyHolder><tm:decryptContent/><tm:symmetricKey><tm:AESKeyValue size=""16"">AAAAAAAAAAAAAAAAAAAAAA==</tm:AESKeyValue></tm:symmetricKey><r:prerequisiteRight><r:keyHolder><r:info><KeyValue xmlns=""http://www.w3.org/2000/09/xmldsig#""><RSAKeyValue><Modulus>ptV5l33YkYwdOV/Ru16t2VcbVg92rhNO1ng3kIn/AY/c/HlfUuVxwR4F4F3JoxbDQ4wiNf1QwQaAJdl/1pHy0iY3Hb60KLMuqOb4/C2EsICU2cOuhVxgVIoM+aqEkkFHyUx1E6+TbCSAvv0PQR7ns6h9CLlXPHZ6w6P8s0L/rAs=</Modulus><Exponent>AQAB</Exponent></RSAKeyValue></KeyValue></r:info></r:keyHolder><r:right varRef=""anyRight""/><sl:appId varRef=""appid""/><r:trustedRootIssuers><r:keyHolder><r:info><KeyValue xmlns=""http://www.w3.org/2000/09/xmldsig#""><RSAKeyValue><Modulus>uzDfZ3WsHY4/UKthrglDqsLw4BqrlOWlNdLBnLD/5sdAUXnv+2kB9jJJPK2TYkbkQ5bfK4QfS8h050WPtpN/NGL7batTKnEjNnRNrenM8+YAT9Ne7K7xCwgJdb08rOZyMqQPKtPr1p6FCwPY7zBvOmtNdvVs0psxwEuq2DmFz1g8+WJw9zGgqI4qkYA7P/yaN0lbQpvH3p1v68DogX7BLd6Z+Z+3MNG1Lh+k11kmd+lM8RaLq74zT8OSZDJ9McD9i/4JaB0kJfdV5oGb0ZbWvW/3Z8pQVf7tA5s3J1Tpp3/nrvV5WtZMZ3nGemTFRP5dxbH5y4YSBoKFGOYCyQH3pQ==</Modulus><Exponent>AQAB</Exponent></RSAKeyValue></KeyValue></r:info></r:keyHolder></r:trustedRootIssuers></r:prerequisiteRight></r:grant></r:grant><r:issuer><Signature xmlns=""http://www.w3.org/2000/09/xmldsig#""><SignedInfo><CanonicalizationMethod Algorithm=""http://www.microsoft.com/xrml/lwc14n""/><SignatureMethod Algorithm=""http://www.w3.org/2000/09/xmldsig#rsa-sha1""/><Reference><Transforms><Transform Algorithm=""urn:mpeg:mpeg21:2003:01-REL-R-NS:licenseTransform""/><Transform Algorithm=""http://www.microsoft.com/xrml/lwc14n""/></Transforms><DigestMethod Algorithm=""http://www.w3.org/2000/09/xmldsig#sha1""/><DigestValue>3bFwQHj4OtR0bjG1eiTQfZ0jFWQ=</DigestValue></Reference></SignedInfo><SignatureValue>NbYcpkEFJ1okOjpLKKktLnJsQ7lI3HG052adOCdhPf0qBxgXFTW25k+NFwp1UELR3ls2R57/3QJsSu1fjxjarpHVud4i22jou5+bMrDok5J0V6oPFaYBJce6Mjw8xcpBOZczqMfUhAa/PeYvJSG8wAi/2Wthco6Gt5dwVxFEQc7Zpr7pH3OxZz4ujKH/4WcgyjjlrwvW8IQ2Xfbcl562K449G1VOmB2G1XwfdSFCliJiO2FV44Ztk0gPkBNHcjrC08TipMTGbqJH8tQn4VJ5zueoMoxCCLMPQ/kVW4wjS5VGfWTEIzvvy2OSdY3tdnt4b3dbMBMVRixXVn0Cp2kh1Q==</SignatureValue><KeyInfo><KeyValue><RSAKeyValue><Modulus>lAi6wXhcWOjn1rN1aIy6z4YBcYlkdrxP9EEw7iiD0tg6i0aVOgZ/FS6IxiOgZXYwTgK/BHA7QN6/lvxnecZ2cETT7w7ZRByGUN1zTQKFwXdyQz/xdp5kZ81bmI3EQWLJBT6iW5K8HZr0qRsQRlExUrWZSOI449+Br2QgOMcBMS3FEMBS8XCBPgZ3z/V9ydztWjhopBB0ZngebWEjqwtlrXEB1M+WOPWUcljdJlp5pXNkiqCrJEzenMJ+tfTfD/8zv08LdhhIAmx1VLViItRqO9OD7l313X7bVyfTWTxGmf7D9YS5Sa0UCiOXM0qVZCVuQ5CzjLRLa13FaJurQ6SBhQ==</Modulus><Exponent>AQAB</Exponent></RSAKeyValue></KeyValue></KeyInfo></Signature><r:details><r:timeOfIssue>2018-06-27T23:08:05Z</r:timeOfIssue></r:details></r:issuer><r:otherInfo xmlns:r=""urn:mpeg:mpeg21:2003:01-REL-R-NS""><tm:infoTables xmlns:tm=""http://www.microsoft.com/DRM/XrML2/TM/v2""><tm:infoList tag=""#global""><tm:infoStr name=""licenseType"">msft:sl/PL/GENERIC/PRIVATE</tm:infoStr><tm:infoStr name=""licenseVersion"">2.0</tm:infoStr><tm:infoStr name=""licensorUrl"">https://licensing.microsoft.com</tm:infoStr><tm:infoStr name=""licenseCategory"">msft:sl/PL/GENERIC/PRIVATE</tm:infoStr><tm:infoStr name=""publicCertificateId"">{7c6134e6-409c-47ed-a9b5-514c983557a0}</tm:infoStr><tm:infoStr name=""clientIssuanceCertificateId"">{CE939C0E-53F7-4011-A286-78B6975FA5F0}</tm:infoStr><tm:infoStr name=""hwid:ootGrace"">3</tm:infoStr><tm:infoStr name=""migratable"">true</tm:infoStr></tm:infoList></tm:infoTables></r:otherInfo></r:license></rg:licenseGroup>";
 
-                    case "Win7RetailPublishLicense":
-                        // 修复：删除所有硬编码的 r:license，改为 {0} 占位符
-                        // 这样程序才能将 GetCertificateAsync(pkcUrl...) 获取到的真实证书填入
-                        return @"<?xml version=""1.0"" encoding=""utf-8""?>
-                        <rg:licenseGroup xmlns:rg=""urn:microsoft:sl:licensegroup:2005"" xmlns:r=""urn:mpeg:mpeg21:2003:01-REL-R-NS"" xmlns:msft=""urn:microsoft:sl:2005"" licenseGroupId=""{da14d8a7-0d40-4881-b84f-c478593586ff}"">
-                            <rg:license type=""UseLicense"">
-                                {0}
-                            </rg:license>
-                        </rg:licenseGroup>";
+                    
                     default:
                         return string.Empty;
                 }
@@ -388,21 +390,16 @@ namespace CreateActXml
             }
         }
 
-        /// <summary>
-        /// 写入UseKey/Claims子节点（提取重复XML写入逻辑）
-        /// </summary>
-        // 新增参数：isWin7（标记是否为Win7及以上系统）
-        /// <summary>
-        /// 写入UseKey/Claims子节点（提取重复XML写入逻辑）
+        //// <summary>
+        /// 写入UseKey/Claims子节点（修复RAC XML命名空间和CDATA转义）
         /// </summary>
         /// <param name="xmlWriter">XML写入器</param>
         /// <param name="parentNodeName">父节点名称（UseKey/Claims）</param>
         /// <param name="dataDict">节点数据字典</param>
-        /// <param name="isClaims">是否为Claims节点（预留扩展）</param>
+        /// <param name="isClaims">是否为Claims节点</param>
         /// <param name="isWin7">是否为Win7系统（适配命名空间/CDATA差异）</param>
-        private static void WriteKeyOrClaimsNode(XmlTextWriter xmlWriter, string parentNodeName, Dictionary<string, string> dataDict, bool isClaims = false, bool isWin7 = false)
+        private static void WriteKeyOrClaimsNode(XmlTextWriter xmlWriter, string parentNodeName, Dictionary<string, string> dataDict,bool isClaims = false, bool isWin7 = false)
         {
-            // 校验入参，避免空引用异常
             if (xmlWriter == null)
                 throw new ArgumentNullException(nameof(xmlWriter));
             if (string.IsNullOrEmpty(parentNodeName))
@@ -410,84 +407,64 @@ namespace CreateActXml
 
             try
             {
-                // 写入父节点（UseKey/Claims）并指定命名空间
-                xmlWriter.WriteStartElement(parentNodeName, "http://schemas.xmlsoap.org/ws/2004/04/security/trust");
+                // 1. 写入 <UseKey> 或 <Claims>
+                // 不显式写 xmlns 属性，让它自动继承 RequestSecurityToken 的命名空间
+                xmlWriter.WriteStartElement(parentNodeName);
+
+                // 2. 写入 <Values>
                 xmlWriter.WriteStartElement("Values");
 
-                // 处理空字典场景：标记nil=true
-                if (dataDict == null || dataDict.Count == 0)
+                if (dataDict != null && dataDict.Count > 0)
                 {
-                    xmlWriter.WriteAttributeString("xsi", "nil", "http://www.w3.org/2001/XMLSchema-instance", "true");
-                }
-                else
-                {
-                    // 适配Win7命名空间：移除q1前缀，使用原始命名空间
-                    string arrayTypeNamespace = isWin7
-                        ? "http://schemas.xmlsoap.org/ws/2004/04/security/trust"
-                        : "q1";
+                    // 按照样本：在此处显式声明 xmlns:q1 和 soapenc:arrayType
+                    // 注意：q1 必须指向 http://schemas.xmlsoap.org/ws/2004/04/security/trust
+                    xmlWriter.WriteAttributeString("xmlns", "q1", null, SoapNs.Trust);
+                    xmlWriter.WriteAttributeString("soapenc", "arrayType", SoapNs.Encoding, $"q1:TokenEntry[{dataDict.Count}]");
 
-                    // 写入arrayType属性（指定TokenEntry数组长度）
-                    xmlWriter.WriteAttributeString(
-                        "soapenc",
-                        "arrayType",
-                        "http://schemas.xmlsoap.org/soap/encoding/",
-                        $"{arrayTypeNamespace}:TokenEntry[{dataDict.Count}]"
-                    );
-
-                    // 非Win7场景：添加q1命名空间声明
-                    if (!isWin7)
-                    {
-                        xmlWriter.WriteAttributeString(
-                            "xmlns",
-                            "q1",
-                            null,
-                            "http://schemas.xmlsoap.org/ws/2004/04/security/trust"
-                        );
-                    }
-
-                    // 遍历写入TokenEntry节点
                     foreach (var kvp in dataDict)
                     {
-                        // 跳过空键值对，避免无效XML节点
                         if (string.IsNullOrEmpty(kvp.Key))
                             continue;
 
-                        // Win7：无q1前缀，直接写TokenEntry；非Win7：带q1前缀
-                        if (isWin7)
-                            xmlWriter.WriteStartElement("TokenEntry");
-                        else
-                            xmlWriter.WriteStartElement("q1", "TokenEntry", "http://schemas.xmlsoap.org/ws/2004/04/security/trust");
+                        // <TokenEntry>
+                        xmlWriter.WriteStartElement("TokenEntry");
 
-                        // 写入Name节点
+                        // <Name>
                         xmlWriter.WriteElementString("Name", kvp.Key);
 
-                        // 写入Value节点（Win7禁用CDATA，使用转义字符串）
+                        // <Value>
                         xmlWriter.WriteStartElement("Value");
-                        if (isWin7)
+                        if (!string.IsNullOrWhiteSpace(kvp.Value))
                         {
-                            // XmlTextWriter自动转义特殊字符（< > & " '）
-                            xmlWriter.WriteString(kvp.Value ?? string.Empty);
-                        }
-                        else
-                        {
-                            // 非Win7使用CDATA包裹，避免特殊字符破坏XML结构
-                            xmlWriter.WriteCData(kvp.Value ?? string.Empty);
-                        }
-                        xmlWriter.WriteEndElement(); // Value
+                            string value = kvp.Value.Trim();
 
-                        xmlWriter.WriteEndElement(); // TokenEntry
+                            // 核心修改：样本中使用的是转义字符（如 &lt;），而不是 CDATA。
+                            // 无论是否是 Win7，都应使用 WriteString，它会自动把 < > 转义为 &lt; &gt;
+                            xmlWriter.WriteString(value);
+                        }
+                        xmlWriter.WriteEndElement(); // </Value>
+
+                        xmlWriter.WriteEndElement(); // </TokenEntry>
                     }
                 }
+                else
+                {
+                    // 处理空字典情况
+                    xmlWriter.WriteAttributeString("xsi", "nil", SoapNs.Xsi, "true");
+                }
 
-                xmlWriter.WriteEndElement(); // Values
-                xmlWriter.WriteEndElement(); // parentNodeName
+                xmlWriter.WriteEndElement(); // </Values>
+                xmlWriter.WriteEndElement(); // </UseKey> 或 </Claims>
             }
             catch (XmlException ex)
             {
-                Trace.WriteLine($"[WriteKeyOrClaimsNode] XML写入异常：{ex.Message}");
-                throw; // 抛出异常让上层处理，避免静默失败
+                Trace.WriteLine($"[WriteKeyOrClaimsNode] 异常：{ex.Message}");
+                throw;
             }
         }
+
+
+
 
         /// <summary>
         /// 创建HttpClient实例（单例化配置，优化性能）
@@ -654,41 +631,25 @@ namespace CreateActXml
         }
 
         /// <summary>
-        /// 异步POST请求获取激活错误码
-        /// .NET 4.8 适配：修复ReadToEndAsync、资源释放、编码
+        /// 异步POST请求获取激活错误码（修复编码和请求头）
         /// </summary>
-        /// <param name="url">请求地址</param>
-        /// <param name="soapAction">SOAPAction头</param>
-        /// <param name="requestXml">请求XML</param>
-        /// <param name="is2005Eul">是否是2005版本EUL请求</param>
-        /// <returns>错误码</returns>
-        /// <summary>
-        /// 异步POST请求获取激活错误码
-        /// .NET 4.8 适配：修复ReadToEndAsync、资源释放、编码
-        /// </summary>
-        /// <param name="url">请求地址</param>
-        /// <param name="soapAction">SOAPAction头</param>
-        /// <param name="requestXml">请求XML</param>
-        /// <param name="is2005Eul">是否是2005版本EUL请求</param>
-        /// <returns>错误码</returns>
         private static async Task<string> GetActivationErrorCodeAsync(string url, string soapAction, string requestXml, bool is2005Eul = false)
         {
             try
             {
                 using (var client = CreateHttpClient())
                 {
-                    // 1. 先创建 content
-                    using (var content = new StringContent(requestXml, Encoding.UTF8, "text/xml"))
+                    // 修复1：强制指定UTF-8编码，解决乱码
+                    using (var content = new StringContent(requestXml, Utf8NoBom, ContentTypeXml))
                     {
-                        // 2. 强制指定 utf-8 (注意：StringContent 构造函数可能会自动给 charset 加引号，手动赋值更稳妥)
-                        content.Headers.ContentType.CharSet = "utf-8";
+                        content.Headers.ContentType.CharSet = "utf-8"; // 明确指定字符集
 
-                        // 3. 配置 client 请求头（确保在 PostAsync 之前）
+                        // 修复2：清空原有请求头，避免冲突
                         client.DefaultRequestHeaders.Clear();
                         client.DefaultRequestHeaders.TryAddWithoutValidation("SOAPAction", soapAction);
-                        client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "SLSSoapClient");
+                        client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", DefaultUserAgent);
+                        client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("text/xml"));
 
-                        // 4. 执行唯一的异步请求
                         using (var response = await client.PostAsync(url, content).ConfigureAwait(false))
                         {
                             string responseContent;
@@ -698,34 +659,32 @@ namespace CreateActXml
                             }
                             else
                             {
-                                // .NET 4.8 适配StreamReader.ReadToEndAsync
+                                // 修复3：.NET 4.8适配StreamReader读取错误响应
                                 using (var stream = await response.Content.ReadAsStreamAsync())
-                                using (var sr = new StreamReader(stream, Encoding.UTF8))
+                                using (var sr = new StreamReader(stream, Utf8NoBom))
                                 {
                                     responseContent = await sr.ReadToEndAsync();
                                 }
                             }
 
-                            // 解码HTML/URL转义（.NET 4.8 System.Web.HttpUtility）
+                            // 修复4：解码HTML/URL转义，避免XML解析失败
                             var decodedContent = HttpUtility.HtmlDecode(HttpUtility.UrlDecode(responseContent));
                             return ParseActivationResponseXml(decodedContent, is2005Eul);
                         }
                     }
-
                 }
             }
             catch (HttpRequestException ex)
             {
-                Trace.WriteLine(string.Format("[ActivationApi] 激活错误码请求异常：{0} {1}", ex.Message, ex.StackTrace));
-                return string.Format("{0} : {1}", ErrorCode.ConnectionAbnormal, ex.Message);
+                Trace.WriteLine($"[ActivationApi] HTTP请求异常：{ex.Message}");
+                return $"{ErrorCode.ConnectionAbnormal} : {ex.Message}";
             }
             catch (Exception ex)
             {
-                Trace.WriteLine(string.Format("[ActivationApi] 激活错误码未知异常：{0} {1}", ex.Message, ex.StackTrace));
+                Trace.WriteLine($"[ActivationApi] 未知异常：{ex.Message}");
                 return ErrorCode.Unknown;
             }
         }
-
         /// <summary>
         /// 同步POST请求获取证书（基于异步封装，兼容旧调用）
         /// </summary>
@@ -883,40 +842,45 @@ namespace CreateActXml
         /// 修复原代码入参冗余问题（eulUrl重复）
         /// 新增：Win7 Retail专属PublishLicense模板替换逻辑 + isWin7参数透传
         /// </summary>
+        /// <summary>
+        /// 执行2005版本激活请求（修复Win7 Retail PublishLicense模板）
+        /// </summary>
         private static async Task<string> Execute2005VersionActivation(bool isWindowsProduct, string spcUrl, string spcSoap, string spcXml,
             string racUrl, string racSoap, string racXml, string pkcUrl, string pkcSoap, string pkcXml,
-            string eulUrl, string eulSoap, string productDescription) // 新增参数：productDescription（用于判断Win7）
+            string eulUrl, string eulSoap, string productDescription)
         {
             // 获取SPC/RAC/PKC证书
             var spcCert = await GetCertificateAsync(spcUrl, spcSoap, spcXml);
             var racCert = await GetCertificateAsync(racUrl, racSoap, racXml);
             var pkcCert = await GetCertificateAsync(pkcUrl, pkcSoap, pkcXml);
 
-            // PKC证书返回错误码，直接返回
+            // PKC返回错误码直接返回
             if (pkcCert.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
             {
                 return pkcCert;
             }
 
-            // ########### 核心新增：Win7 Retail PublishLicense模板替换逻辑 ###########
-            bool isWin7Retail = isWindowsProduct && productDescription.Contains("Windows 7") && productDescription.Contains("Retail");
+            // 修复1：识别Win7 Retail版本
+            bool isWin7Retail = isWindowsProduct
+                && productDescription.IndexOf("Windows 7", StringComparison.OrdinalIgnoreCase) >= 0
+                && productDescription.IndexOf("Retail", StringComparison.OrdinalIgnoreCase) >= 0;
+
             var eulClaims = isWindowsProduct ? PresetDictionaries.Claims2005WinEUL : PresetDictionaries.Claims2005OfficeEUL;
             Dictionary<string, string> eulUseKey;
 
+            // 修复2：Win7 Retail使用专属PublishLicense模板（带占位符）
             if (isWin7Retail)
             {
-                // Win7 Retail：深拷贝原UseKey字典，替换PublishLicense为Win7专属模板
                 eulUseKey = new Dictionary<string, string>(PresetDictionaries.UseKey2005WinEUL);
+                // 替换为Win7 Retail专属模板，{0}用于填入真实证书
                 eulUseKey["PublishLicense"] = PresetDictionaries.GetLargeXml("Win7RetailPublishLicense");
             }
             else
             {
-                // 其他产品（Vista/Office2005/Win7非Retail）：沿用原有模板
                 eulUseKey = isWindowsProduct ? PresetDictionaries.UseKey2005WinEUL : PresetDictionaries.UseKey2005OfficeEUL;
             }
-            // #######################################################################
 
-            // 创建EUL XML（传入isWin7参数，让WriteKeyOrClaimsNode优化生效）
+            // 修复3：传入isWin7参数，让XML生成适配Win7规则
             var eulRequestXml = CreateEulActivationXml(spcCert, racCert, pkcCert, eulUseKey, eulClaims, isWin7Retail);
 
             // 获取EUL激活错误码
