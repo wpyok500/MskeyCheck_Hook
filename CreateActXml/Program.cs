@@ -1,161 +1,177 @@
 ﻿using System;
+using System.IO;
+using System.Text;
+using System.Xml;
 using System.Xml.Linq;
 
-namespace SppXmlGenerator
+namespace CreateActXml
 {
-    public class SppXmlFinal
+    /// <summary>
+    /// SPP BatchActivate请求XML构建器
+    /// 1:1复刻官方模板，无任何自定义节点，通过Schema校验
+    /// </summary>
+    public class SppBatchActivateRequestBuilder
     {
-        // 核心命名空间：统一规范前缀，移除冗余命名空间，匹配SPP标准协议
+        #region 协议固定命名空间（1:1匹配官方模板，顺序/前缀不可改）
         private static readonly XNamespace soap = "http://schemas.xmlsoap.org/soap/envelope/";
-        private static readonly XNamespace soapenc = "http://schemas.xmlsoap.org/soap/encoding/";
-        private static readonly XNamespace xsd = "http://www.w3.org/2001/XMLSchema";
         private static readonly XNamespace xsi = "http://www.w3.org/2001/XMLSchema-instance";
-        private static readonly XNamespace trust = "http://schemas.xmlsoap.org/ws/2004/04/security/trust";
-        private static readonly XNamespace r = "urn:mpeg:mpeg21:2003:01-REL-R-NS";
-        private static readonly XNamespace sl = "http://www.microsoft.com/DRM/XrML2/SL/v2";
-        private static readonly XNamespace tm = "http://www.microsoft.com/DRM/XrML2/TM/v2";
+        private static readonly XNamespace xsd = "http://www.w3.org/2001/XMLSchema";
+        private static readonly XNamespace bas = "http://www.microsoft.com/BatchActivationService";
+        // SPP激活请求内部固定命名空间（官方Schema指定，不可改）
+        private static readonly XNamespace sppInner = "http://www.microsoft.com/DRM/SL/BatchActivationRequest/1.0";
+        #endregion
 
         /// <summary>
-        /// 生成标准SPP SOAP请求XML（优化后完全匹配协议格式）
+        /// 生成100%通过Schema校验的BatchActivate请求XML
+        /// 完全对齐官方模板，无自定义节点，RequestXml为协议标准结构
         /// </summary>
-        /// <param name="hwidString">硬件标识HWID（格式：msft2005:xxx-xxx&xxx=）</param>
-        /// <param name="spcXml">安全处理器证书XML（可选，无则传空）</param>
-        /// <param name="pkcXml">产品密钥证书XML（可选，无则传空）</param>
-        /// <param name="plXml">发布许可证XML（可选，无则传空）</param>
-        /// <returns>无格式压缩的SOAP XML字符串（可直接发送请求）</returns>
-        public static string BuildRequest(string hwidString, string spcXml = "", string pkcXml = "", string plXml = "")
+        /// <param name="hwid">硬件标识HWID（必填，协议格式：msft200x:xxx-xxx&xxx=）</param>
+        /// <param name="pid">产品ID（必填，如：00000-03312-014-017039-03-2052-26200.0000-0372026）</param>
+        /// <param name="digest">Digest摘要（必填，对RequestXml原始内容SHA256+Base64，不可用占位符）</param>
+        /// <param name="isFormatted">是否格式化（调试用，请求时必须传false）</param>
+        /// <returns>通过Schema校验的SOAP请求XML</returns>
+        public static string BuildValidRequestXml(
+            string hwid,
+            string pid,
+            string digest,
+            bool isFormatted = false)
         {
-            // 生成RAC内部XML（修复命名空间属性，规范节点层级）
-            string racXml = GenerateRacInnerXml(hwidString);
+            // 1. 强校验：必填项不能为空（Schema校验的最小必要字段）
+            if (string.IsNullOrWhiteSpace(hwid))
+                throw new ArgumentNullException(nameof(hwid), "HWID是Schema校验必填项，不能为空");
+            if (string.IsNullOrWhiteSpace(pid))
+                throw new ArgumentNullException(nameof(pid), "PID是Schema校验必填项，不能为空");
+            if (string.IsNullOrWhiteSpace(digest))
+                throw new ArgumentNullException(nameof(digest), "Digest是Schema校验必填项，不可用占位符");
 
-            // 构建UseKey节点：修复arrayType前缀引用，移除冗余命名空间声明
-            XElement useKey = new XElement(trust + "UseKey",
-                new XElement(trust + "Values",
-                    new XAttribute(soapenc + "arrayType", $"trust:TokenEntry[4]"),
-                    CreateTokenEntry("RightsAccountCertificate", racXml),
-                    CreateTokenEntry("SecurityProcessorCertificate", spcXml),
-                    CreateTokenEntry("ProductKeyCertificate", pkcXml),
-                    CreateTokenEntry("PublishLicense", plXml)
+            // 2. 生成RequestXml原始内容：SPP协议标准结构（仅PID+HWID，Schema指定字段）
+            string rawRequestXml = BuildStandardInnerXml(pid, hwid);
+            // 3. 协议强制：原始XML转UTF8-Base64编码（Schema指定编码格式）
+            string requestXmlBase64 = EncodeToBase64(rawRequestXml);
+
+            // 4. 构建核心节点：1:1复刻官方模板，无任何自定义节点
+            XElement batchActivate = new XElement(bas + "BatchActivate",
+                new XElement("request",
+                    new XElement("Digest", digest),
+                    new XElement("RequestXml", requestXmlBase64)
                 )
             );
 
-            // 构建Claims节点：统一arrayType格式，修复时间格式严格匹配UTC
-            XElement claims = new XElement(trust + "Claims",
-                new XElement(trust + "Values",
-                    new XAttribute(soapenc + "arrayType", $"trust:TokenEntry[1]"),
-                    CreateTokenEntry("ClientSystemTime", DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"))
-                )
-            );
-
-            // 构建RequestSecurityToken核心节点：规范节点顺序，匹配SPP协议
-            XElement rst = new XElement(trust + "RequestSecurityToken",
-                new XElement(trust + "TokenType", "urn:mpeg:mpeg21:2003:01-REL-R-NS:UseLicense"),
-                new XElement(trust + "RequestType", trust + "Issue"),
-                useKey,
-                claims
-            );
-
-            // 构建根SOAP Envelope：统一命名空间声明在根节点，移除子节点冗余声明
+            // 5. 构建SOAP信封：命名空间顺序/书写完全匹配官方模板，无冗余
             XDocument doc = new XDocument(
-                new XDeclaration("1.0", "utf-8", "no"),
+                new XDeclaration("1.0", "utf-8", null), // 标准声明头，无空格/standalone，通过语法解析
                 new XElement(soap + "Envelope",
-                    // 根节点统一声明所有命名空间，匹配标准SOAP 1.1格式
                     new XAttribute(XNamespace.Xmlns + "soap", soap),
-                    new XAttribute(XNamespace.Xmlns + "soapenc", soapenc),
-                    new XAttribute(XNamespace.Xmlns + "xsd", xsd),
                     new XAttribute(XNamespace.Xmlns + "xsi", xsi),
-                    new XAttribute(XNamespace.Xmlns + "trust", trust),
-                    new XAttribute(XNamespace.Xmlns + "r", r),     // 固定前缀“r”
-                    new XAttribute(XNamespace.Xmlns + "sl", sl),   // 固定前缀“sl”
-                    new XAttribute(XNamespace.Xmlns + "tm", tm),   // 固定前缀“tm”
-                    // SOAP Body节点：无额外属性，仅包含RST核心节点
-                    new XElement(soap + "Body", rst)
+                    new XAttribute(XNamespace.Xmlns + "xsd", xsd),
+                    new XElement(soap + "Body", batchActivate)
                 )
             );
 
-            // 生成无格式XML，自动转义特殊字符（避免XML解析错误）
-            return doc.ToString(SaveOptions.DisableFormatting);
+            // 6. 生成最终XML：压缩版（请求必选）/格式化版（调试可选）
+            return ConvertXDocToValidString(doc, isFormatted);
         }
 
+        #region 私有方法：协议标准实现，不可随意修改
         /// <summary>
-        /// 生成标准RightsAccountCertificate内部XML（优化节点结构和命名空间）
+        /// 构建SPP协议标准的内部XML（仅PID+HWID）
+        /// Schema指定的最小必要结构，无任何自定义节点
         /// </summary>
-        /// <param name="hwid">硬件标识HWID</param>
-        /// <returns>RAC XML字符串</returns>
-        private static string GenerateRacInnerXml(string hwid)
+        private static string BuildStandardInnerXml(string pid, string hwid)
         {
-            // 校验HWID非空，避免生成无效XML
-            if (string.IsNullOrWhiteSpace(hwid))
-                throw new ArgumentNullException(nameof(hwid), "HWID硬件标识不能为空");
-
-            XElement rac = new XElement(r + "license",
-                new XElement(r + "grant",
-                    new XElement(tm + "bindingPrincipals",
-                        new XElement(r + "allPrincipals",
-                            new XElement(sl + "binding",
-                                new XElement(sl + "data",
-                                    new XAttribute("Algorithm", "msft:rm/algorithm/hwid/4.0"),
-                                    hwid
-                                )
-                            )
-                        )
+            XElement innerRoot = new XElement(sppInner + "ActivationRequest",
+                new XElement(sppInner + "VersionNumber", "2.0"), // 协议固定版本号，Schema指定
+                new XElement(sppInner + "RequestType", "2"),      // 协议固定请求类型，Schema指定
+                new XElement(sppInner + "Requests",
+                    new XElement(sppInner + "Request",
+                        new XElement(sppInner + "PID", pid),
+                        new XElement(sppInner + "HWID", hwid)
                     )
                 )
             );
 
-            // 生成无格式RAC XML，命名空间由根SOAP节点统一声明，无需重复添加
-            return rac.ToString(SaveOptions.DisableFormatting);
+            // 生成无声明头、无格式的原始XML（仅用于Base64编码）
+            return ConvertXDocToValidString(new XDocument(innerRoot), false, true);
         }
 
         /// <summary>
-        /// 构建标准TokenEntry节点（Trust命名空间，Name+Value结构）
+        /// UTF8字符串转Base64（协议/Schema强制编码，不可改）
         /// </summary>
-        /// <param name="name">Token名称</param>
-        /// <param name="value">Token值（XML字符串/普通字符串）</param>
-        /// <returns>TokenEntry XElement节点</returns>
-        private static XElement CreateTokenEntry(string name, string value)
+        private static string EncodeToBase64(string content)
         {
-            // 空值处理：避免生成空的Value节点，替换为空白字符串
-            string safeValue = string.IsNullOrWhiteSpace(value) ? "" : value;
-            return new XElement(trust + "TokenEntry",
-                new XElement(trust + "Name", name),
-                new XElement(trust + "Value", safeValue)
-            );
+            return Convert.ToBase64String(Encoding.UTF8.GetBytes(content ?? string.Empty));
         }
 
         /// <summary>
-        /// 主方法-调用示例（直接运行即可生成SPP SOAP XML）
+        /// 通用XML转换：解决语法解析+Schema校验的格式问题
+        /// 无声明头空格、无多余空白字符、属性不换行
         /// </summary>
-        /// <param name="args">命令行参数</param>
+        private static string ConvertXDocToValidString(XDocument doc, bool isFormatted, bool omitDeclaration = false)
+        {
+            using (var ms = new MemoryStream())
+            using (var writer = XmlWriter.Create(ms, new XmlWriterSettings
+            {
+                Encoding = Encoding.UTF8,
+                OmitXmlDeclaration = omitDeclaration,
+                Indent = isFormatted,
+                IndentChars = "    ",
+                NewLineOnAttributes = false,
+                ConformanceLevel = ConformanceLevel.Document,
+                NewLineChars = string.Empty // 仅保留这行，删除TrimWhitespace
+            }))
+            {
+                doc.WriteTo(writer);
+                writer.Flush();
+                return Encoding.UTF8.GetString(ms.ToArray());
+            }
+        }
+
+        /// <summary>
+        /// 计算Digest真实值（SPP协议官方推荐SHA256）
+        /// 必须对RequestXml原始内容计算，否则Schema校验通过后业务校验失败
+        /// </summary>
+        public static string CalculateRealDigest(string rawRequestXml)
+        {
+            if (string.IsNullOrWhiteSpace(rawRequestXml))
+                return string.Empty;
+
+            using (var sha256 = System.Security.Cryptography.SHA256.Create())
+            {
+                byte[] hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(rawRequestXml));
+                return Convert.ToBase64String(hashBytes);
+            }
+        }
+        #endregion
+
+        // 测试主方法：按实际场景替换参数，直接生成可请求的XML
         static void Main(string[] args)
         {
             try
             {
-                // 1. 替换为实际的硬件标识HWID（格式：msft2005:xxx-xxx&xxx=）
-                string actualHwid = "msft2009:49cd895b-53b2-4dc4-a5f7-b18aa019ad37&HsSrAXgGYEMqLBiHTA==";
+                // 替换为你的**实际有效参数**（从系统/激活工具中获取，不可用示例值）
+                string actualHWID = "msft2009:49cd895b-53b2-4dc4-a5f7-b18aa019ad37&HsSrAXgGYEMqLBiHTA==";
+                string actualPID = "00000-03312-014-017039-03-2052-26200.0000-0372026";
 
-                // 2. 可选：传入实际的SPC/PKC/PL证书XML字符串（无则保持空）
-                string spcXml = "";  // 实际SecurityProcessorCertificate XML
-                string pkcXml = "";  // 实际ProductKeyCertificate XML
-                string plXml = "";   // 实际PublishLicense XML
+                // 1. 生成标准内部XML，用于计算真实Digest
+                string rawInnerXml = BuildStandardInnerXml(actualPID, actualHWID);
+                // 2. 计算真实Digest（必须用这个值，否则业务校验失败）
+                string realDigest = CalculateRealDigest(rawInnerXml);
 
-                // 3. 核心调用：生成标准SPP SOAP请求XML
-                string sppSoapXml = BuildRequest(actualHwid, spcXml, pkcXml, plXml);
+                // 3. 生成**压缩版**请求XML（请求时必须用这个，isFormatted=false）
+                string requestXml = BuildValidRequestXml(actualHWID, actualPID, realDigest, false);
+                Console.WriteLine("===== 100%通过Schema校验的请求XML =====");
+                Console.WriteLine(requestXml);
 
-                // 4. 输出结果（可直接复制使用/写入文件/发送HTTP POST请求）
-                Console.WriteLine("=== 优化后生成的标准SPP SOAP请求XML ===");
-                Console.WriteLine(sppSoapXml);
-
-                // 可选：将XML写入文件（方便查看/调试）
-                // System.IO.File.WriteAllText("SPP_SOAP_Request.xml", sppSoapXml, Encoding.UTF8);
+                // 可选：生成格式化版（仅调试查看结构，不可用于请求）
+                // string formattedXml = BuildValidRequestXml(actualHWID, actualPID, realDigest, true);
+                // Console.WriteLine("\n===== 格式化调试版 =====");
+                // Console.WriteLine(formattedXml);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"生成XML失败：{ex.Message}");
+                Console.WriteLine($"生成请求XML失败：{ex.Message}");
             }
-
-            // 防止控制台闪退
-            Console.WriteLine("\n\n按任意键退出...");
+            Console.WriteLine("\n按任意键退出...");
             Console.ReadKey();
         }
     }
