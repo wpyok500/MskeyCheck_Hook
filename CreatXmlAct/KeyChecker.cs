@@ -214,7 +214,7 @@ namespace MsKeyChecker
                 var skuId = _pkc.GetConfigForGroup(pkeyData.Group).ConfigId.Trim('{', '}');
                 var actData = Utils.EncodeKeyData(pkeyData.Group, pkeyData.Serial, pkeyData.Security, pkeyData.Upgrade);
                 var actConfigId = Utils.XmlEscape($"msft2009:{skuId}&{actData}");
-                actConfigId = Utils.XmlEscape("msft2009:4de7cb65-cdf1-4de9-8ae8-e3cce27b9f2c&hHe2EXYGGMG+BH8FWw==");
+                //actConfigId = Utils.XmlEscape("msft2009:4de7cb65-cdf1-4de9-8ae8-e3cce27b9f2c&hHe2EXYGGMG+BH8FWw==");
 
                 // 渲染SOAP模板
                 //var payload = PkcReqTemplate
