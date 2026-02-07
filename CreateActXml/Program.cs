@@ -12,8 +12,6 @@ namespace CreateActXml
         {
             try
             {
-                
-
                 // 同步调用
                 string productKey = "GC6HC-JQ8YG-8WY69-Y338J-GXWP3";
                 string productDesc = "Windows 7 Professional OEM:COA"; 
