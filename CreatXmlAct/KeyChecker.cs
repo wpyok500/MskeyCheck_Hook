@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data.SqlTypes;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -144,6 +146,37 @@ namespace MsKeyChecker
     </soap:Body>
 </soap:Envelope>";
 
+        string Office2009PublishLicense = @"&lt;?xml version=""1.0"" encoding=""utf-8""?&gt;&lt;rg:licenseGroup
+                            xmlns:rg=""urn:mpeg:mpeg21:2003:01-REL-R-NS""&gt;&lt;r:license
+                            xmlns:r=""urn:mpeg:mpeg21:2003:01-REL-R-NS"" licenseId=""{7c6134e6-409c-47ed-a9b5-514c983557a0}""
+                            xmlns:sx=""urn:mpeg:mpeg21:2003:01-REL-SX-NS""
+                            xmlns:mx=""urn:mpeg:mpeg21:2003:01-REL-MX-NS""
+                            xmlns:sl=""http://www.microsoft.com/DRM/XrML2/SL/v2""
+                            xmlns:tm=""http://www.microsoft.com/DRM/XrML2/TM/v2""&gt;&lt;r:title&gt;Office 16 Publishing License (Public)&lt;/r:title&gt;&lt;r:grant&gt;&lt;r:forAll varName=""productId""&gt;&lt;r:anXmlExpression&gt;/sl:productId/sl:pid&lt;/r:anXmlExpression&gt;&lt;/r:forAll&gt;&lt;r:forAll varName=""binding""&gt;&lt;/r:forAll&gt;&lt;r:keyHolder&gt;&lt;r:info&gt;&lt;KeyValue
+                            xmlns=""http://www.w3.org/2000/09/xmldsig#""&gt;&lt;RSAKeyValue&gt;&lt;Modulus&gt;uzDfZ3WsHY4/UKthrglDqsLw4BqrlOWlNdLBnLD/5sdAUXnv+2kB9jJJPK2TYkbkQ5bfK4QfS8h050WPtpN/NGL7batTKnEjNnRNrenM8+YAT9Ne7K7xCwgJdb08rOZyMqQPKtPr1p6FCwPY7zBvOmtNdvVs0psxwEuq2DmFz1g8+WJw9zGgqI4qkYA7P/yaN0lbQpvH3p1v68DogX7BLd6Z+Z+3MNG1Lh+k11kmd+lM8RaLq74zT8OSZDJ9McD9i/4JaB0kJfdV5oGb0ZbWvW/3Z8pQVf7tA5s3J1Tpp3/nrvV5WtZMZ3nGemTFRP5dxbH5y4YSBoKFGOYCyQH3pQ==&lt;/Modulus&gt;&lt;Exponent&gt;AQAB&lt;/Exponent&gt;&lt;/RSAKeyValue&gt;&lt;/KeyValue&gt;&lt;/r:info&gt;&lt;/r:keyHolder&gt;&lt;r:issue/&gt;&lt;r:grant&gt;&lt;r:forAll varName=""application""&gt;&lt;r:anXmlExpression&gt;editionId[@value="""" or @value=""Office16ProPlusMSDNR_Retail""]&lt;/r:anXmlExpression&gt;&lt;/r:forAll&gt;&lt;r:forAll varName=""appid""&gt;&lt;r:propertyPossessor&gt;&lt;tm:application varRef=""application""/&gt;&lt;r:trustedRootIssuers&gt;&lt;r:keyHolder&gt;&lt;r:info&gt;&lt;KeyValue
+                            xmlns=""http://www.w3.org/2000/09/xmldsig#""&gt;&lt;RSAKeyValue&gt;&lt;Modulus&gt;lAi6wXhcWOjn1rN1aIy6z4YBcYlkdrxP9EEw7iiD0tg6i0aVOgZ/FS6IxiOgZXYwTgK/BHA7QN6/lvxnecZ2cETT7w7ZRByGUN1zTQKFwXdyQz/xdp5kZ81bmI3EQWLJBT6iW5K8HZr0qRsQRlExUrWZSOI449+Br2QgOMcBMS3FEMBS8XCBPgZ3z/V9ydztWjhopBB0ZngebWEjqwtlrXEB1M+WOPWUcljdJlp5pXNkiqCrJEzenMJ+tfTfD/8zv08LdhhIAmx1VLViItRqO9OD7l313X7bVyfTWTxGmf7D9YS5Sa0UCiOXM0qVZCVuQ5CzjLRLa13FaJurQ6SBhQ==&lt;/Modulus&gt;&lt;Exponent&gt;AQAB&lt;/Exponent&gt;&lt;/RSAKeyValue&gt;&lt;/KeyValue&gt;&lt;/r:info&gt;&lt;/r:keyHolder&gt;&lt;/r:trustedRootIssuers&gt;&lt;/r:propertyPossessor&gt;&lt;/r:forAll&gt;&lt;r:keyHolder&gt;&lt;r:info&gt;&lt;KeyValue
+                            xmlns=""http://www.w3.org/2000/09/xmldsig#""&gt;&lt;RSAKeyValue&gt;&lt;Modulus&gt;ptV5l33YkYwdOV/Ru16t2VcbVg92rhNO1ng3kIn/AY/c/HlfUuVxwR4F4F3JoxbDQ4wiNf1QwQaAJdl/1pHy0iY3Hb60KLMuqOb4/C2EsICU2cOuhVxgVIoM+aqEkkFHyUx1E6+TbCSAvv0PQR7ns6h9CLlXPHZ6w6P8s0L/rAs=&lt;/Modulus&gt;&lt;Exponent&gt;AQAB&lt;/Exponent&gt;&lt;/RSAKeyValue&gt;&lt;/KeyValue&gt;&lt;/r:info&gt;&lt;/r:keyHolder&gt;&lt;sl:runSoftware/&gt;&lt;sl:appId varRef=""appid""/&gt;&lt;r:allConditions&gt;&lt;r:allConditions&gt;&lt;sl:productPolicies
+                            xmlns:sl=""http://www.microsoft.com/DRM/XrML2/SL/v2""&gt;&lt;sl:priority&gt;400&lt;/sl:priority&gt;&lt;sl:policyStr name=""Security-SPP-Reserved-ProductUniquenessGroupID""&gt;05DC53C7-C5BE-4D6B-9A3E-1984B2E7F47C&lt;/sl:policyStr&gt;&lt;sl:policyStr name=""Security-SPP-Reserved-Family"" attributes=""override-only""&gt;Office16ProPlusMSDNR_Retail&lt;/sl:policyStr&gt;&lt;/sl:productPolicies&gt;&lt;sl:proxyExecutionKey
+                            xmlns:sl=""http://www.microsoft.com/DRM/XrML2/SL/v2""&gt;&lt;/sl:proxyExecutionKey&gt;&lt;/r:allConditions&gt;&lt;mx:renderer&gt;&lt;sl:binding varRef=""binding""/&gt;&lt;sl:productId varRef=""productId""/&gt;&lt;/mx:renderer&gt;&lt;/r:allConditions&gt;&lt;/r:grant&gt;&lt;r:allConditions&gt;&lt;sl:businessRules
+                            xmlns:sl=""http://www.microsoft.com/DRM/XrML2/SL/v2""&gt;&lt;/sl:businessRules&gt;&lt;/r:allConditions&gt;&lt;/r:grant&gt;&lt;r:issuer&gt;&lt;Signature
+                            xmlns=""http://www.w3.org/2000/09/xmldsig#""&gt;&lt;SignedInfo&gt;&lt;CanonicalizationMethod Algorithm=""http://www.microsoft.com/xrml/lwc14n""/&gt;&lt;SignatureMethod Algorithm=""http://www.w3.org/2000/09/xmldsig#rsa-sha1""/&gt;&lt;Reference&gt;&lt;Transforms&gt;&lt;Transform Algorithm=""urn:mpeg:mpeg21:2003:01-REL-R-NS:licenseTransform""/&gt;&lt;Transform Algorithm=""http://www.microsoft.com/xrml/lwc14n""/&gt;&lt;/Transforms&gt;&lt;DigestMethod Algorithm=""http://www.w3.org/2000/09/xmldsig#sha1""/&gt;&lt;DigestValue&gt;TtnlPLgMGSKY+gXlVPTp9bLmY9U=&lt;/DigestValue&gt;&lt;/Reference&gt;&lt;/SignedInfo&gt;&lt;SignatureValue&gt;DcPeLWssKlnrpLhnt5r+v1SSSzTvaiLPMk9DZHsKFcq7wD7umhzIw6+BnasQK20EvfZkXbQtzskBjRsZ+DXxUgp4F/CGTk7bWRDN//XQOHOP1BPyVhNVylcqjQw3K7ZKVtsbWDpzOskp9Rc28mh/XUhKyMyueFpFeKGhC7pbwMi0pk0JcFEyCwbiCYTYx9bCSipKx1JI5DpSfCZdql6X7JOsdiTjQYVvcLzkstwWmc2OCZgZexMdPB7Td5f3YR6kHfFOXP9Q7EIxsCXgDMw1L1VpJwOtXnCX/qntd9Z2XvilFv6CtJetndKafZEBzyz+997l6Iv9pL5cqs62TwhSPw==&lt;/SignatureValue&gt;&lt;KeyInfo&gt;&lt;KeyValue&gt;&lt;RSAKeyValue&gt;&lt;Modulus&gt;lAi6wXhcWOjn1rN1aIy6z4YBcYlkdrxP9EEw7iiD0tg6i0aVOgZ/FS6IxiOgZXYwTgK/BHA7QN6/lvxnecZ2cETT7w7ZRByGUN1zTQKFwXdyQz/xdp5kZ81bmI3EQWLJBT6iW5K8HZr0qRsQRlExUrWZSOI449+Br2QgOMcBMS3FEMBS8XCBPgZ3z/V9ydztWjhopBB0ZngebWEjqwtlrXEB1M+WOPWUcljdJlp5pXNkiqCrJEzenMJ+tfTfD/8zv08LdhhIAmx1VLViItRqO9OD7l313X7bVyfTWTxGmf7D9YS5Sa0UCiOXM0qVZCVuQ5CzjLRLa13FaJurQ6SBhQ==&lt;/Modulus&gt;&lt;Exponent&gt;AQAB&lt;/Exponent&gt;&lt;/RSAKeyValue&gt;&lt;/KeyValue&gt;&lt;/KeyInfo&gt;&lt;/Signature&gt;&lt;r:details&gt;&lt;r:timeOfIssue&gt;2018-06-27T23:08:05Z&lt;/r:timeOfIssue&gt;&lt;/r:details&gt;&lt;/r:issuer&gt;&lt;r:otherInfo
+                            xmlns:r=""urn:mpeg:mpeg21:2003:01-REL-R-NS""&gt;&lt;tm:infoTables
+                            xmlns:tm=""http://www.microsoft.com/DRM/XrML2/TM/v2""&gt;&lt;tm:infoList tag=""#global""&gt;&lt;tm:infoStr name=""licenseType""&gt;msft:sl/PL/GENERIC/PUBLIC&lt;/tm:infoStr&gt;&lt;tm:infoStr name=""licenseVersion""&gt;2.0&lt;/tm:infoStr&gt;&lt;tm:infoStr name=""licensorUrl""&gt;https://licensing.microsoft.com&lt;/tm:infoStr&gt;&lt;tm:infoStr name=""licenseCategory""&gt;msft:sl/PL/GENERIC/PUBLIC&lt;/tm:infoStr&gt;&lt;tm:infoStr name=""productSkuId""&gt;{84832881-46EF-4124-8ABC-EB493CDCF78E}&lt;/tm:infoStr&gt;&lt;tm:infoStr name=""privateCertificateId""&gt;{997cb5ed-bf97-40c8-857a-19945436aa99}&lt;/tm:infoStr&gt;&lt;tm:infoStr name=""applicationId""&gt;{0ff1ce15-a989-479d-af46-f275c6370663}&lt;/tm:infoStr&gt;&lt;tm:infoStr name=""productName""&gt;Office 16, Office16ProPlusMSDNR_Retail edition&lt;/tm:infoStr&gt;&lt;tm:infoStr name=""Family""&gt;Office16ProPlusMSDNR_Retail&lt;/tm:infoStr&gt;&lt;tm:infoStr name=""productAuthor""&gt;Microsoft Corporation&lt;/tm:infoStr&gt;&lt;tm:infoStr name=""productDescription""&gt;Office 16&lt;/tm:infoStr&gt;&lt;tm:infoStr name=""clientIssuanceCertificateId""&gt;{CE939C0E-53F7-4011-A286-78B6975FA5F0}&lt;/tm:infoStr&gt;&lt;tm:infoStr name=""hwid:ootGrace""&gt;3&lt;/tm:infoStr&gt;&lt;tm:infoStr name=""migratable""&gt;true&lt;/tm:infoStr&gt;&lt;tm:infoStr name=""referralData""&gt;ReferralId=000000;PartnerId=00000000-0000-0000-0000-000000000000&lt;/tm:infoStr&gt;&lt;/tm:infoList&gt;&lt;/tm:infoTables&gt;&lt;/r:otherInfo&gt;&lt;/r:license&gt;&lt;r:license
+                            xmlns:r=""urn:mpeg:mpeg21:2003:01-REL-R-NS"" licenseId=""{997cb5ed-bf97-40c8-857a-19945436aa99}""
+                            xmlns:sx=""urn:mpeg:mpeg21:2003:01-REL-SX-NS""
+                            xmlns:mx=""urn:mpeg:mpeg21:2003:01-REL-MX-NS""
+                            xmlns:sl=""http://www.microsoft.com/DRM/XrML2/SL/v2""
+                            xmlns:tm=""http://www.microsoft.com/DRM/XrML2/TM/v2""&gt;&lt;r:title&gt;Office 16 Publishing License (Private)&lt;/r:title&gt;&lt;r:grant&gt;&lt;r:keyHolder&gt;&lt;r:info&gt;&lt;KeyValue
+                            xmlns=""http://www.w3.org/2000/09/xmldsig#""&gt;&lt;RSAKeyValue&gt;&lt;Modulus&gt;uzDfZ3WsHY4/UKthrglDqsLw4BqrlOWlNdLBnLD/5sdAUXnv+2kB9jJJPK2TYkbkQ5bfK4QfS8h050WPtpN/NGL7batTKnEjNnRNrenM8+YAT9Ne7K7xCwgJdb08rOZyMqQPKtPr1p6FCwPY7zBvOmtNdvVs0psxwEuq2DmFz1g8+WJw9zGgqI4qkYA7P/yaN0lbQpvH3p1v68DogX7BLd6Z+Z+3MNG1Lh+k11kmd+lM8RaLq74zT8OSZDJ9McD9i/4JaB0kJfdV5oGb0ZbWvW/3Z8pQVf7tA5s3J1Tpp3/nrvV5WtZMZ3nGemTFRP5dxbH5y4YSBoKFGOYCyQH3pQ==&lt;/Modulus&gt;&lt;Exponent&gt;AQAB&lt;/Exponent&gt;&lt;/RSAKeyValue&gt;&lt;/KeyValue&gt;&lt;/r:info&gt;&lt;/r:keyHolder&gt;&lt;r:issue/&gt;&lt;r:grant&gt;&lt;r:forAll varName=""anyRight""&gt;&lt;/r:forAll&gt;&lt;r:forAll varName=""appid""&gt;&lt;/r:forAll&gt;&lt;r:keyHolder&gt;&lt;r:info&gt;&lt;KeyValue
+                            xmlns=""http://www.w3.org/2000/09/xmldsig#""&gt;&lt;RSAKeyValue&gt;&lt;Modulus&gt;ptV5l33YkYwdOV/Ru16t2VcbVg92rhNO1ng3kIn/AY/c/HlfUuVxwR4F4F3JoxbDQ4wiNf1QwQaAJdl/1pHy0iY3Hb60KLMuqOb4/C2EsICU2cOuhVxgVIoM+aqEkkFHyUx1E6+TbCSAvv0PQR7ns6h9CLlXPHZ6w6P8s0L/rAs=&lt;/Modulus&gt;&lt;Exponent&gt;AQAB&lt;/Exponent&gt;&lt;/RSAKeyValue&gt;&lt;/KeyValue&gt;&lt;/r:info&gt;&lt;/r:keyHolder&gt;&lt;tm:decryptContent/&gt;&lt;tm:symmetricKey&gt;&lt;tm:AESKeyValue size=""16""&gt;AAAAAAAAAAAAAAAAAAAAAA==&lt;/tm:AESKeyValue&gt;&lt;/tm:symmetricKey&gt;&lt;r:prerequisiteRight&gt;&lt;r:keyHolder&gt;&lt;r:info&gt;&lt;KeyValue
+                            xmlns=""http://www.w3.org/2000/09/xmldsig#""&gt;&lt;RSAKeyValue&gt;&lt;Modulus&gt;ptV5l33YkYwdOV/Ru16t2VcbVg92rhNO1ng3kIn/AY/c/HlfUuVxwR4F4F3JoxbDQ4wiNf1QwQaAJdl/1pHy0iY3Hb60KLMuqOb4/C2EsICU2cOuhVxgVIoM+aqEkkFHyUx1E6+TbCSAvv0PQR7ns6h9CLlXPHZ6w6P8s0L/rAs=&lt;/Modulus&gt;&lt;Exponent&gt;AQAB&lt;/Exponent&gt;&lt;/RSAKeyValue&gt;&lt;/KeyValue&gt;&lt;/r:info&gt;&lt;/r:keyHolder&gt;&lt;r:right varRef=""anyRight""/&gt;&lt;sl:appId varRef=""appid""/&gt;&lt;r:trustedRootIssuers&gt;&lt;r:keyHolder&gt;&lt;r:info&gt;&lt;KeyValue
+                            xmlns=""http://www.w3.org/2000/09/xmldsig#""&gt;&lt;RSAKeyValue&gt;&lt;Modulus&gt;uzDfZ3WsHY4/UKthrglDqsLw4BqrlOWlNdLBnLD/5sdAUXnv+2kB9jJJPK2TYkbkQ5bfK4QfS8h050WPtpN/NGL7batTKnEjNnRNrenM8+YAT9Ne7K7xCwgJdb08rOZyMqQPKtPr1p6FCwPY7zBvOmtNdvVs0psxwEuq2DmFz1g8+WJw9zGgqI4qkYA7P/yaN0lbQpvH3p1v68DogX7BLd6Z+Z+3MNG1Lh+k11kmd+lM8RaLq74zT8OSZDJ9McD9i/4JaB0kJfdV5oGb0ZbWvW/3Z8pQVf7tA5s3J1Tpp3/nrvV5WtZMZ3nGemTFRP5dxbH5y4YSBoKFGOYCyQH3pQ==&lt;/Modulus&gt;&lt;Exponent&gt;AQAB&lt;/Exponent&gt;&lt;/RSAKeyValue&gt;&lt;/KeyValue&gt;&lt;/r:info&gt;&lt;/r:keyHolder&gt;&lt;/r:trustedRootIssuers&gt;&lt;/r:prerequisiteRight&gt;&lt;/r:grant&gt;&lt;/r:grant&gt;&lt;r:issuer&gt;&lt;Signature
+                            xmlns=""http://www.w3.org/2000/09/xmldsig#""&gt;&lt;SignedInfo&gt;&lt;CanonicalizationMethod Algorithm=""http://www.microsoft.com/xrml/lwc14n""/&gt;&lt;SignatureMethod Algorithm=""http://www.w3.org/2000/09/xmldsig#rsa-sha1""/&gt;&lt;Reference&gt;&lt;Transforms&gt;&lt;Transform Algorithm=""urn:mpeg:mpeg21:2003:01-REL-R-NS:licenseTransform""/&gt;&lt;Transform Algorithm=""http://www.microsoft.com/xrml/lwc14n""/&gt;&lt;/Transforms&gt;&lt;DigestMethod Algorithm=""http://www.w3.org/2000/09/xmldsig#sha1""/&gt;&lt;DigestValue&gt;3bFwQHj4OtR0bjG1eiTQfZ0jFWQ=&lt;/DigestValue&gt;&lt;/Reference&gt;&lt;/SignedInfo&gt;&lt;SignatureValue&gt;NbYcpkEFJ1okOjpLKKktLnJsQ7lI3HG052adOCdhPf0qBxgXFTW25k+NFwp1UELR3ls2R57/3QJsSu1fjxjarpHVud4i22jou5+bMrDok5J0V6oPFaYBJce6Mjw8xcpBOZczqMfUhAa/PeYvJSG8wAi/2Wthco6Gt5dwVxFEQc7Zpr7pH3OxZz4ujKH/4WcgyjjlrwvW8IQ2Xfbcl562K449G1VOmB2G1XwfdSFCliJiO2FV44Ztk0gPkBNHcjrC08TipMTGbqJH8tQn4VJ5zueoMoxCCLMPQ/kVW4wjS5VGfWTEIzvvy2OSdY3tdnt4b3dbMBMVRixXVn0Cp2kh1Q==&lt;/SignatureValue&gt;&lt;KeyInfo&gt;&lt;KeyValue&gt;&lt;RSAKeyValue&gt;&lt;Modulus&gt;lAi6wXhcWOjn1rN1aIy6z4YBcYlkdrxP9EEw7iiD0tg6i0aVOgZ/FS6IxiOgZXYwTgK/BHA7QN6/lvxnecZ2cETT7w7ZRByGUN1zTQKFwXdyQz/xdp5kZ81bmI3EQWLJBT6iW5K8HZr0qRsQRlExUrWZSOI449+Br2QgOMcBMS3FEMBS8XCBPgZ3z/V9ydztWjhopBB0ZngebWEjqwtlrXEB1M+WOPWUcljdJlp5pXNkiqCrJEzenMJ+tfTfD/8zv08LdhhIAmx1VLViItRqO9OD7l313X7bVyfTWTxGmf7D9YS5Sa0UCiOXM0qVZCVuQ5CzjLRLa13FaJurQ6SBhQ==&lt;/Modulus&gt;&lt;Exponent&gt;AQAB&lt;/Exponent&gt;&lt;/RSAKeyValue&gt;&lt;/KeyValue&gt;&lt;/KeyInfo&gt;&lt;/Signature&gt;&lt;r:details&gt;&lt;r:timeOfIssue&gt;2018-06-27T23:08:05Z&lt;/r:timeOfIssue&gt;&lt;/r:details&gt;&lt;/r:issuer&gt;&lt;r:otherInfo
+                            xmlns:r=""urn:mpeg:mpeg21:2003:01-REL-R-NS""&gt;&lt;tm:infoTables
+                            xmlns:tm=""http://www.microsoft.com/DRM/XrML2/TM/v2""&gt;&lt;tm:infoList tag=""#global""&gt;&lt;tm:infoStr name=""licenseType""&gt;msft:sl/PL/GENERIC/PRIVATE&lt;/tm:infoStr&gt;&lt;tm:infoStr name=""licenseVersion""&gt;2.0&lt;/tm:infoStr&gt;&lt;tm:infoStr name=""licensorUrl""&gt;https://licensing.microsoft.com&lt;/tm:infoStr&gt;&lt;tm:infoStr name=""licenseCategory""&gt;msft:sl/PL/GENERIC/PRIVATE&lt;/tm:infoStr&gt;&lt;tm:infoStr name=""publicCertificateId""&gt;{7c6134e6-409c-47ed-a9b5-514c983557a0}&lt;/tm:infoStr&gt;&lt;tm:infoStr name=""clientIssuanceCertificateId""&gt;{CE939C0E-53F7-4011-A286-78B6975FA5F0}&lt;/tm:infoStr&gt;&lt;tm:infoStr name=""hwid:ootGrace""&gt;3&lt;/tm:infoStr&gt;&lt;tm:infoStr name=""migratable""&gt;true&lt;/tm:infoStr&gt;&lt;/tm:infoList&gt;&lt;/tm:infoTables&gt;&lt;/r:otherInfo&gt;&lt;/r:license&gt;&lt;/rg:licenseGroup&gt;
+                        ";
+
+
         /// <summary>
         /// 构造函数
         /// </summary>
@@ -181,22 +214,60 @@ namespace MsKeyChecker
                 var skuId = _pkc.GetConfigForGroup(pkeyData.Group).ConfigId.Trim('{', '}');
                 var actData = Utils.EncodeKeyData(pkeyData.Group, pkeyData.Serial, pkeyData.Security, pkeyData.Upgrade);
                 var actConfigId = Utils.XmlEscape($"msft2009:{skuId}&{actData}");
+                actConfigId = Utils.XmlEscape("msft2009:4de7cb65-cdf1-4de9-8ae8-e3cce27b9f2c&hHe2EXYGGMG+BH8FWw==");
 
                 // 渲染SOAP模板
-                var payload = PkcReqTemplate
-                    .Replace("{pkey}", pkey)
-                    .Replace("{act_config_id}", actConfigId);
+                //var payload = PkcReqTemplate
+                //    .Replace("{pkey}", pkey)
+                //    .Replace("{act_config_id}", actConfigId);
 
                 // 发送请求（.NET 4.8 WebClient同步请求）
+                //_webClient.Headers.Remove(HttpRequestHeader.ContentType);
+                //_webClient.Headers.Remove("SOAPAction");
+                //_webClient.Headers.Add(HttpRequestHeader.ContentType, "text/xml; charset=utf-8");
+                //_webClient.Headers.Add("SOAPAction", "http://microsoft.com/SL/ProductCertificationService/IssueToken");
+                // 渲染SOAP模板
+                // 构造请求参数
+                var now = DateTime.Now;
+                var timestamp = Utils.FormatTimestamp(now);
+                var secureStoreId = Guid.NewGuid().ToString();
+                var binding = Utils.GenerateBinding();
+                //var plXml = Utils.XmlEscape(Office2009PublishLicense);//PubLicense
+                // 检查 PL 是否已经转义过
+                string processedPl;
+                if (Office2009PublishLicense.StartsWith("&lt;"))
+                {
+                    // 如果已经转义过，直接使用，不要再调用 XmlEscape
+                    processedPl = Office2009PublishLicense;
+                }
+                else
+                {
+                    // 如果是原始 XML，则进行转义
+                    processedPl = Utils.XmlEscape(Office2009PublishLicense);
+                }
+
+                var payload = AtoReqTemplate
+                     .Replace("{plxml}", processedPl)
+                    .Replace("{binding}", binding)
+                    .Replace("{pkey}", pkey)
+                    .Replace("{act_config_id}", actConfigId)
+                    .Replace("{systime}", timestamp)
+                    .Replace("{utctime}", timestamp)
+                    .Replace("{secure_store_id}", secureStoreId);
+                    //.Replace("{plxml}", Office2009PublishLicense);
+
+                // 发送请求
                 _webClient.Headers.Remove(HttpRequestHeader.ContentType);
                 _webClient.Headers.Remove("SOAPAction");
                 _webClient.Headers.Add(HttpRequestHeader.ContentType, "text/xml; charset=utf-8");
-                _webClient.Headers.Add("SOAPAction", "http://microsoft.com/SL/ProductCertificationService/IssueToken");
+                _webClient.Headers.Add("SOAPAction", "http://microsoft.com/SL/ProductActivationService/IssueToken");
+
+                var url = $"https://activation.sls.microsoft.com/SLActivateProduct/SLActivateProduct.asmx?configextension=o14";
 
                 string respXml;
                 try
                 {
-                    respXml = _webClient.UploadString("https://activation.sls.microsoft.com/slpkc/SLCertifyProduct.asmx", payload);
+                    respXml = _webClient.UploadString(url, payload);
                 }
                 catch (WebException ex)
                 {
@@ -205,7 +276,7 @@ namespace MsKeyChecker
                     {
                         respXml = sr.ReadToEnd();
                     }
-                    throw new Exception($"请求失败: {respXml}", ex);
+                    //throw new Exception($"请求失败: {respXml}", ex);
                 }
 
                 // 解析响应
@@ -217,71 +288,7 @@ namespace MsKeyChecker
             }
         }
 
-        /// <summary>
-        /// 激活/消耗产品密钥（同步版）
-        /// </summary>
-        /// <param name="pkey">产品密钥</param>
-        /// <param name="configExt">配置扩展（默认Retail）</param>
-        /// <returns>激活结果</returns>
-        public KeyResult ConsumeKey(string pkey, string configExt = "Retail")
-        {
-            if (!pkey.Contains("N"))
-                return new KeyResult("N/A", "Product key is not PKEY2009.", false);
-
-            try
-            {
-                var pkeyData = ProductKeyDecoder.Decode(pkey);
-                var skuId = _pkc.GetConfigForGroup(pkeyData.Group).ConfigId.Trim('{', '}');
-                var actData = Utils.EncodeKeyData(pkeyData.Group, pkeyData.Serial, pkeyData.Security, pkeyData.Upgrade);
-                var actConfigId = Utils.XmlEscape($"msft2009:{skuId}&{actData}");
-
-                // 构造请求参数
-                var now = DateTime.Now;
-                var timestamp = Utils.FormatTimestamp(now);
-                var secureStoreId = Guid.NewGuid().ToString();
-                var binding = Utils.GenerateBinding();
-                var plXml = Utils.XmlEscape(PubLicense);
-
-                // 渲染SOAP模板
-                var payload = AtoReqTemplate
-                    .Replace("{plxml}", plXml)
-                    .Replace("{binding}", binding)
-                    .Replace("{pkey}", pkey)
-                    .Replace("{act_config_id}", actConfigId)
-                    .Replace("{systime}", timestamp)
-                    .Replace("{utctime}", timestamp)
-                    .Replace("{secure_store_id}", secureStoreId);
-
-                // 发送请求
-                _webClient.Headers.Remove(HttpRequestHeader.ContentType);
-                _webClient.Headers.Remove("SOAPAction");
-                _webClient.Headers.Add(HttpRequestHeader.ContentType, "text/xml; charset=utf-8");
-                _webClient.Headers.Add("SOAPAction", "http://microsoft.com/SL/ProductActivationService/IssueToken");
-
-                string respXml;
-                var url = $"https://activation.sls.microsoft.com/SLActivateProduct/SLActivateProduct.asmx?configextension={configExt}";
-                try
-                {
-                    respXml = _webClient.UploadString(url, payload);
-                }
-                catch (WebException ex)
-                {
-                    using (var sr = new StreamReader(ex.Response.GetResponseStream()))
-                    {
-                        respXml = sr.ReadToEnd();
-                    }
-                    throw new Exception($"激活请求失败: {respXml}", ex);
-                }
-
-                // 解析响应
-                return ParseSoapResponse(respXml);
-            }
-            catch (Exception ex)
-            {
-                return new KeyResult("N/A", $"Product key not compatible with provided pkeyconfig: {ex.Message}", false);
-            }
-        }
-
+        
         /// <summary>
         /// 批量处理密钥（同步版）
         /// </summary>
@@ -348,28 +355,50 @@ namespace MsKeyChecker
             try
             {
                 var xDoc = XDocument.Parse(xml);
-                var nsManager = new XmlNamespaceManager(new NameTable());
-                nsManager.AddNamespace("soap", "http://schemas.xmlsoap.org/soap/envelope/");
 
-                // 查找Fault节点
-                var faultNode = xDoc.Descendants(XName.Get("Fault", "http://schemas.xmlsoap.org/soap/envelope/")).FirstOrDefault();
+                // 1. 查找 Fault 节点 (忽略命名空间)
+                var faultNode = xDoc.Descendants().FirstOrDefault(x => x.Name.LocalName == "Fault");
+
                 if (faultNode == null)
-                    return new KeyResult("0x0", "", true);
+                {
+                    return new KeyResult("0x0", "Success", true);
+                }
 
-                // 解析错误信息
-                var hresult = faultNode.Descendants("HRESULT").FirstOrDefault()?.Value ?? "N/A";
-                var message = faultNode.Descendants("Message").FirstOrDefault()?.Value ?? "Unknown error";
-                return new KeyResult(hresult, message, false);
+                // 2. 查找 detail 节点
+                var detailNode = faultNode.Descendants().FirstOrDefault(x => x.Name.LocalName == "detail");
+
+                // 3. 提取 HRESULT
+                // 这里的关键：HRESULT 是 detail 的直接或间接子级
+                var hresult = detailNode?.Elements().FirstOrDefault(x => x.Name.LocalName == "HRESULT")?.Value
+                              ?? "N/A";
+
+                // 4. 提取 Message
+                // 路径：detail -> Messages -> Message
+                var messageNode = detailNode?.Descendants()
+                                            .FirstOrDefault(x => x.Name.LocalName == "Message");
+
+                string rawMessage = messageNode?.Value ?? "Unknown Error";
+
+                // 5. 格式化清理
+                // 注意：XML 解析器会自动把 &gt; 转回 >，手动 Replace 可能不需要，
+                // 但为了保险可以处理常见的混淆字符。
+                string cleanMessage = rawMessage
+                    .Replace("\n", " ")
+                    .Replace("\r", "")
+                    .Replace("---&gt;", "->")
+                    .Trim();
+
+                return new KeyResult(hresult, cleanMessage, false);
             }
             catch (Exception ex)
             {
-                return new KeyResult("N/A", $"解析响应失败: {ex.Message}", false);
+                return new KeyResult("Error", $"XML 解析异常: {ex.Message}", false);
             }
         }
         #endregion
 
         #region 资源释放
-        
+
         // 实现IDisposable接口
         public void Dispose()
         {
@@ -445,51 +474,86 @@ namespace MsKeyChecker
     /// </summary>
     public static class ProductKeyDecoder
     {
-        // 包含 N 的 25 位字符表
-        private static readonly string Base32Table = "BCDFGHJKMNPQRTVWXY2346789";
+        // 确认字母表的正确性（24个字符）
+        private const string ALPHABET = "BCDFGHJKMPQRTVWXY2346789";
 
         public static ProductKeyData Decode(string pkey)
         {
-            // 1. 预处理
-            string cleanKey = pkey.Replace("-", "").Replace(" ", "").ToUpperInvariant();
-            if (cleanKey.Length != 25) throw new ArgumentException("密钥长度应为25位");
+            if (string.IsNullOrWhiteSpace(pkey))
+                throw new ArgumentException("Product key is empty");
 
-            // 2. 核心：大数幂运算 (Polynomial Base 25)
-            // 从左往右读，每读一位：总和 = 总和 * 25 + 当前字符索引
-            BigInteger combined = 0;
-            foreach (char c in cleanKey)
-            {
-                int value = Base32Table.IndexOf(c);
-                if (value == -1) throw new ArgumentException($"无效字符: {c}");
+            BigInteger key = Decode5x5(pkey, ALPHABET);
 
-                // 关键：必须乘 25，因为字符表长度是 25
-                combined = BigInteger.Multiply(combined, 25);
-                combined = BigInteger.Add(combined, value);
-            }
+            // 修正掩码：确保低20位的掩码是 0xFFFFF（十进制 1048575），覆盖20位所有可能值
+            BigInteger groupMask = BigInteger.Parse("000000000000000000000000000FFFFF", System.Globalization.NumberStyles.HexNumber);
+            BigInteger serialMask = BigInteger.Parse("00000000000000000003FFFFfff00000", System.Globalization.NumberStyles.HexNumber);
+            BigInteger securityMask = BigInteger.Parse("0000007ffffffffffffc000000000000", System.Globalization.NumberStyles.HexNumber);
+            BigInteger checksumMask = BigInteger.Parse("0001ff80000000000000000000000000", System.Globalization.NumberStyles.HexNumber);
+            BigInteger upgradeMask = BigInteger.Parse("00020000000000000000000000000000", System.Globalization.NumberStyles.HexNumber);
 
-            // 3. 位拆分 (严格按照微软 PKEY2009 掩码)
-            // Upgrade: 最低 1 位
-            int upgrade = (int)(combined & 1);
+            // 1. Group 取低20位（修正：确保掩码和位移正确）
+            BigInteger group = key & groupMask;
 
-            // Serial: 接下来的 30 位
-            BigInteger serialMask = (BigInteger.One << 30) - 1;
-            ulong serial = (ulong)((combined >> 1) & serialMask);
+            // 2. Serial 右移20位后取低30位（20-49位）
+            BigInteger serial = (key & serialMask) >> 20;
 
-            // Group: 接下来的 20 位 (这里必须解出 4307)
-            BigInteger groupMask = (BigInteger.One << 20) - 1;
-            uint group = (uint)((combined >> 31) & groupMask);
+            // 3. Security 右移50位后取低53位（50-102位）
+            BigInteger security = (key & securityMask) >> 50;
 
-            // Security: 接下来的 53 位
-            BigInteger securityMask = (BigInteger.One << 53) - 1;
-            ulong security = (ulong)((combined >> 51) & securityMask);
+            // 4. Checksum / Upgrade 
+            BigInteger checksum = (key & checksumMask) >> 103;
+            BigInteger upgrade = (key & upgradeMask) >> 113;
 
             return new ProductKeyData
             {
-                Group = group,
-                Serial = serial,
-                Security = security,
-                Upgrade = upgrade
+                Group = (uint)group,
+                Serial = (uint)serial,
+                Security = (ulong)security,
+                Upgrade = (upgrade == 1 ? 1 : 0)
             };
+        }
+
+        // 修正核心解码逻辑：解决N的索引问题 + 字符解析错误
+        private static BigInteger Decode5x5(string key, string alphabet)
+        {
+            // 第一步：清理密钥（移除分隔符，转大写）
+            string cleanKey = key.Replace("-", "").ToUpperInvariant();
+
+            // 第二步：查找N的位置（如果没有N，抛出异常或处理）
+            int nIndex = cleanKey.IndexOf('N');
+            if (nIndex == -1)
+                throw new ArgumentException("Product key does not contain required 'N' character");
+
+            // 第三步：拆分密钥为N前 + N后（确保N是第一个元素）
+            List<int> dec = new List<int>();
+            // 添加N的索引（这里是N在密钥中的位置，不是字母表中的索引）
+            dec.Add(nIndex);
+
+            // 遍历除N外的所有字符，解析字母表中的索引
+            foreach (char c in cleanKey)
+            {
+                if (c == 'N') continue; // 跳过N本身
+
+                int idx = alphabet.IndexOf(c);
+                if (idx == -1)
+                    throw new ArgumentException($"Character '{c}' is not in the alphabet");
+
+                dec.Add(idx);
+            }
+
+            // 第四步：修正进制计算（关键：alphabet长度是24，所以用24作为进制）
+            BigInteger result = 0;
+            foreach (int x in dec)
+            {
+                result = (result * alphabet.Length) + x; // 用alphabet.Length代替硬编码24
+            }
+
+            return result;
+        }
+
+        private static BigInteger ParseHex(string hex)
+        {
+            return BigInteger.Parse(hex, System.Globalization.NumberStyles.HexNumber);
         }
     }
 
@@ -684,7 +748,10 @@ namespace MsKeyChecker
 
             // 生成18位随机字节（.NET 4.8 写法）
             var randomBytes = new byte[18];
-            RandomNumberGenerator.Create().GetBytes(randomBytes);
+            using (var rng = RandomNumberGenerator.Create())
+            {
+                rng.GetBytes(randomBytes);
+            }
 
             // 拼接固定字节和随机字节
             var binding = new byte[fixedBytes.Length + randomBytes.Length];
@@ -724,9 +791,9 @@ namespace MsKeyChecker
             return input
                 .Replace("&", "&amp;")
                 .Replace("<", "&lt;")
-                .Replace(">", "&gt;")
-                .Replace("\"", "&quot;")
-                .Replace("'", "&apos;");
+                .Replace(">", "&gt;");
+                //.Replace("\"", "&quot;")
+                //.Replace("'", "&apos;");
         }
 
         /// <summary>

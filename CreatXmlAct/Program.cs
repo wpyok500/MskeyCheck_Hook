@@ -42,36 +42,6 @@ namespace CreatXmlAct
                         Console.WriteLine($"错误码：{queryResult.HResult}");
                         Console.WriteLine($"错误信息：{queryResult.Message}");
                     }
-
-                    // ===================== 示例2：单密钥激活（可选） =====================
-                    Console.WriteLine("\n=== 单密钥激活测试（可选） ===");
-                    KeyResult consumeResult = checker.ConsumeKey(testKey, "Retail");
-
-                    // 输出激活结果
-                    Console.WriteLine($"密钥：{testKey}");
-                    Console.WriteLine($"激活状态：{(consumeResult.Success ? "成功" : "失败")}");
-                    if (!consumeResult.Success)
-                    {
-                        Console.WriteLine($"错误码：{consumeResult.HResult}");
-                        Console.WriteLine($"错误信息：{consumeResult.Message}");
-                    }
-
-                    // ===================== 示例3：批量密钥验证 =====================
-                    Console.WriteLine("\n=== 批量密钥验证测试 ===");
-                    string inputKeyFile = @"D:\keys.txt"; // 一行一个密钥的文本文件
-                    string outputResultFile = @"D:\result.txt"; // 输出结果文件
-
-                    BatchResult batchResult = checker.BatchProcess(inputKeyFile, outputResultFile, isConsume: false);
-
-                    // 输出批量处理结果
-                    Console.WriteLine($"总密钥数：{batchResult.TotalCount}");
-                    Console.WriteLine($"有效密钥数：{batchResult.ValidKeys.Count}");
-                    Console.WriteLine("有效密钥列表：");
-                    foreach (string validKey in batchResult.ValidKeys)
-                    {
-                        Console.WriteLine($" - {validKey}");
-                    }
-                    Console.WriteLine($"详细结果已保存至：{outputResultFile}");
                 }
             }
             catch (Exception ex)
