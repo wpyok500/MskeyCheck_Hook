@@ -271,12 +271,20 @@ namespace MsKeyChecker
                 }
                 catch (WebException ex)
                 {
-                    // 捕获Web异常（如网络错误、服务器返回错误）
-                    using (var sr = new StreamReader(ex.Response.GetResponseStream()))
+                    // 检查是否有响应正文
+                    if (ex.Response != null)
                     {
-                        respXml = sr.ReadToEnd();
+                        using (var sr = new StreamReader(ex.Response.GetResponseStream()))
+                        {
+                            respXml = sr.ReadToEnd();
+                        }
+                        // 注意：这里不再 throw，而是让 respXml 进入下面的 ParseSoapResponse
                     }
-                    //throw new Exception($"请求失败: {respXml}", ex);
+                    else
+                    {
+                        // 如果连响应对象都没有（比如断网），则必须抛出
+                        throw new Exception("网络连接失败，未收到服务器响应", ex);
+                    }
                 }
 
                 // 解析响应
@@ -289,6 +297,7 @@ namespace MsKeyChecker
         }
 
         
+
         /// <summary>
         /// 批量处理密钥（同步版）
         /// </summary>
@@ -296,7 +305,7 @@ namespace MsKeyChecker
         /// <param name="outputPath">输出日志路径</param>
         /// <param name="isConsume">是否激活（true=激活，false=仅验证）</param>
         /// <returns>批量处理结果</returns>
-        public BatchResult BatchProcess(string inputPath, string outputPath, bool isConsume)
+        public BatchResult BatchProcess(string inputPath, string outputPath)
         {
             var validKeys = new List<string>();
             var total = 0;
@@ -317,10 +326,8 @@ namespace MsKeyChecker
                     total++;
 
                     KeyResult result;
-                    if (isConsume)
-                        result = ConsumeKey(pkey);
-                    else
-                        result = QueryKey(pkey);
+                    
+                    result = QueryKey(pkey);
 
                     // 写入输出
                     sw.WriteLine($"Key: {pkey}");
