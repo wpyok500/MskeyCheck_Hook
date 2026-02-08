@@ -8,6 +8,7 @@ using System.Net;
 using System.Numerics;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Linq;
@@ -445,7 +446,7 @@ namespace MsKeyChecker
     {
         public uint Group { get; set; }      // 20位
         public ulong Serial { get; set; }    // 30位
-        public ulong Security { get; set; }  // 53位
+        public ulong  Security { get; set; }  // 53位
         public int Upgrade { get; set; }     // 1位（0/1）
     }
     // 单密钥处理结果（替换record为class）
@@ -483,76 +484,50 @@ namespace MsKeyChecker
     {
         // 确认字母表的正确性（24个字符）
         private const string ALPHABET = "BCDFGHJKMPQRTVWXY2346789";
+        // 静态查找表：将字符直接映射到数值，避免 IndexOf 的 O(n) 搜索
+        private static readonly sbyte[] CharTable = new sbyte[128];
+        static ProductKeyDecoder()
+        {
+            for (int i = 0; i < 128; i++) CharTable[i] = -1;
+            for (int i = 0; i < ALPHABET.Length; i++) CharTable[ALPHABET[i]] = (sbyte)i;
+        }
 
         public static ProductKeyData Decode(string pkey)
         {
             if (string.IsNullOrWhiteSpace(pkey))
                 throw new ArgumentException("Product key is empty");
 
-            BigInteger key = Decode5x5(pkey, ALPHABET);
+            BigInteger key = Decode5x5(pkey);
 
-            // 修正掩码：确保低20位的掩码是 0xFFFFF（十进制 1048575），覆盖20位所有可能值
-            BigInteger groupMask = BigInteger.Parse("000000000000000000000000000FFFFF", System.Globalization.NumberStyles.HexNumber);
-            BigInteger serialMask = BigInteger.Parse("00000000000000000003FFFFfff00000", System.Globalization.NumberStyles.HexNumber);
-            BigInteger securityMask = BigInteger.Parse("0000007ffffffffffffc000000000000", System.Globalization.NumberStyles.HexNumber);
-            BigInteger checksumMask = BigInteger.Parse("0001ff80000000000000000000000000", System.Globalization.NumberStyles.HexNumber);
-            BigInteger upgradeMask = BigInteger.Parse("00020000000000000000000000000000", System.Globalization.NumberStyles.HexNumber);
-
-            // 1. Group 取低20位（修正：确保掩码和位移正确）
-            BigInteger group = key & groupMask;
-
-            // 2. Serial 右移20位后取低30位（20-49位）
-            BigInteger serial = (key & serialMask) >> 20;
-
-            // 3. Security 右移50位后取低53位（50-102位）
-            BigInteger security = (key & securityMask) >> 50;
-
-            // 4. Checksum / Upgrade 
-            BigInteger checksum = (key & checksumMask) >> 103;
-            BigInteger upgrade = (key & upgradeMask) >> 113;
-
+            // 位域解析（严格遵循 20, 30, 53, 1 的分布）
             return new ProductKeyData
             {
-                Group = (uint)group,
-                Serial = (uint)serial,
-                Security = (ulong)security,
-                Upgrade = (upgrade == 1 ? 1 : 0)
+                Group = (uint)(key & 0xFFFFF), // 20 bits
+                Serial = (ulong)((key >> 20) & 0x3FFFFFFF), // 30 bits
+                Security = (ulong)((key >> 50) & ((BigInteger.One << 53) - 1)), // 53 bits
+                Upgrade = ((int)((key >> 103) & 1)) // 1 bit
             };
         }
 
         // 修正核心解码逻辑：解决N的索引问题 + 字符解析错误
-        private static BigInteger Decode5x5(string key, string alphabet)
+        private static BigInteger Decode5x5(string key)
         {
-            // 第一步：清理密钥（移除分隔符，转大写）
-            string cleanKey = key.Replace("-", "").ToUpperInvariant();
+            string normalized = key.Replace("-", "").ToUpper();
+            if (normalized.Length != 25) throw new FormatException("Key must be 25 characters.");
 
-            // 第二步：查找N的位置（如果没有N，抛出异常或处理）
-            int nIndex = cleanKey.IndexOf('N');
-            if (nIndex == -1)
-                throw new ArgumentException("Product key does not contain required 'N' character");
+            // 必须严格保持顺序：N 对应的值作为第一个被计算的元素
+            int nIndex = normalized.IndexOf('N');
+            string dataPart = normalized.Replace("N", "");
 
-            // 第三步：拆分密钥为N前 + N后（确保N是第一个元素）
-            List<int> dec = new List<int>();
-            // 添加N的索引（这里是N在密钥中的位置，不是字母表中的索引）
-            dec.Add(nIndex);
+            BigInteger result = (BigInteger)nIndex; // N 的位置先入栈
 
-            // 遍历除N外的所有字符，解析字母表中的索引
-            foreach (char c in cleanKey)
+            foreach (char c in dataPart)
             {
-                if (c == 'N') continue; // 跳过N本身
+                sbyte val = (c < 128) ? CharTable[c] : (sbyte)-1;
+                if (val == -1) throw new FormatException($"Invalid character: {c}");
 
-                int idx = alphabet.IndexOf(c);
-                if (idx == -1)
-                    throw new ArgumentException($"Character '{c}' is not in the alphabet");
-
-                dec.Add(idx);
-            }
-
-            // 第四步：修正进制计算（关键：alphabet长度是24，所以用24作为进制）
-            BigInteger result = 0;
-            foreach (int x in dec)
-            {
-                result = (result * alphabet.Length) + x; // 用alphabet.Length代替硬编码24
+                // 核心算法：result = result * 24 + value
+                result = BigInteger.Add(BigInteger.Multiply(result, 24), (int)val);
             }
 
             return result;
@@ -771,20 +746,19 @@ namespace MsKeyChecker
         /// <summary>
         /// 编码激活数据
         /// </summary>
-        public static string EncodeKeyData(uint group, ulong serial, ulong security, int upgrade)
-        {
-            var actHash = (ulong)upgrade & 1;
-            actHash |= ((ulong)serial & ((1UL << 30) - 1)) << 1;
-            actHash |= ((ulong)group & ((1UL << 20) - 1)) << 31;
-            actHash |= ((ulong)security & ((1UL << 53) - 1)) << 51;
+        public static string EncodeKeyData(uint group, ulong serial, BigInteger security, int upgrade)
+        {      
+            // 1. 使用 BigInteger 处理超过 64 位的数据拼接
+            BigInteger actHash = upgrade & 1;
+            // 2. 严格按照位宽进行位移拼接
+            // 布局: [Security(53)] [Group(20)] [Serial(30)] [Upgrade(1)]
+            actHash |= (serial & ((1UL << 30) - 1)) << 1;         // Serial: 30位
+            actHash |= (group & ((1UL << 20) - 1)) << 31;         // Group: 20位
+            actHash |= (security & ((1UL << 53) - 1)) << 51;      // Security: 53位
 
-            // 转13字节小端
-            var actBytes = new byte[13];
-            for (int i = 0; i < 13; i++)
-            {
-                actBytes[i] = (byte)(actHash >> (8 * i));
-            }
-            return Convert.ToBase64String(actBytes);
+            byte[] bytes = actHash.ToByteArray();
+            Array.Resize(ref bytes, 13);
+            return Convert.ToBase64String(bytes);
         }
 
         /// <summary>
