@@ -64,7 +64,7 @@ namespace MsKeyChecker
                     </TokenEntry>
                     <TokenEntry>
                         <Name>ProductKeyType</Name>
-                        <Value>msft:rm/algorithm/pkey/2009</Value>
+                        <Value>{ProductKeyType}</Value>
                     </TokenEntry>
                     <TokenEntry>
                         <Name>ProductKeyActConfigId</Name>
@@ -216,6 +216,7 @@ namespace MsKeyChecker
                 var actData = Utils.EncodeKeyData(pkeyData.Group, pkeyData.Serial, pkeyData.Security, pkeyData.Upgrade);
                 var actConfigId = Utils.XmlEscape($"msft2009:{skuId}&{actData}");
                 //actConfigId = Utils.XmlEscape("msft2009:4de7cb65-cdf1-4de9-8ae8-e3cce27b9f2c&hHe2EXYGGMG+BH8FWw==");
+                var ProductKeyType = string.IsNullOrEmpty(actConfigId)? "msft:rm/algorithm/pkey/2009" : actConfigId.Contains("2009")? "msft:rm/algorithm/pkey/2009":"msft:rm/algorithm/pkey/2005";
 
                 // 渲染SOAP模板
                 //var payload = PkcReqTemplate
@@ -254,8 +255,8 @@ namespace MsKeyChecker
                     .Replace("{act_config_id}", actConfigId)
                     .Replace("{systime}", timestamp)
                     .Replace("{utctime}", timestamp)
-                    .Replace("{secure_store_id}", secureStoreId);
-                    //.Replace("{plxml}", Office2009PublishLicense);
+                    .Replace("{secure_store_id}", secureStoreId)
+                    .Replace("{ProductKeyType}", ProductKeyType);
 
                 // 发送请求
                 _webClient.Headers.Remove(HttpRequestHeader.ContentType);
