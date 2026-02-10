@@ -12,13 +12,13 @@ namespace 密钥检测关键字符串Hook
 {
     class Program
     {
-        #region 核心配置（保持你的偏移0xA981，统一注释说明）
+        // 核心配置（保持你的偏移0xA981，统一注释说明）
         private const string TARGET_DLL = "ProductKeyUtilities.dll";          // 目标系统DLL
         private const int GET_PKEYDATA_HOOK_OFFSET = 0xA981;                  // Hook偏移：GetPKeyData+0xA981（对应sub_7BBCA981）
         private const int VALID_HOOK_CALL_COUNT = 2;                          // 有效拦截次数：第三次调用
         private const string TARGET_MATCH_STR = "msft2009";                   // 目标匹配字符串
-        private const string TEST_PRODUCT_KEY = "VK7JG-NPHTM-C97JM-9MPGT-3V66T"; // 测试产品密钥
-        #endregion
+        private const string TEST_PRODUCT_KEY = "V2TF8-C4NHR-TT84V-G94Q8-9TRY9"; // 测试产品密钥
+        private const string configPath = "ProPlus2021MSDNR_Retail-pl.xrm-ms";
 
         #region 1. GetPKeyData原生函数委托（StdCall，无修改）
         [UnmanagedFunctionPointer(CallingConvention.StdCall, CharSet = CharSet.Unicode)]
@@ -267,7 +267,7 @@ namespace 密钥检测关键字符串Hook
         {
             Console.WriteLine("==================== 开始调用GetPKeyData ====================");
             string productKey = TEST_PRODUCT_KEY;
-            string configPath = Path.Combine(Environment.CurrentDirectory, "pkconfig_winNext.xrm-ms");
+            
             StringBuilder pidSb = new StringBuilder(512);
             string iid = null, description = null, channel = null, subType = null;
 
