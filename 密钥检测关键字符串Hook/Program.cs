@@ -170,11 +170,58 @@ namespace 密钥检测关键字符串Hook
             IntPtr getPKeyDataAddr = GetProcAddress(_hModule, "GetPKeyData");
             if (getPKeyDataAddr == IntPtr.Zero)
             {
-                Console.WriteLine($"加载{TARGET_DLL}失败", FreeLibrary(getPKeyDataAddr));
+                Console.WriteLine($"获取GetPKeyData地址失败");
                 FreeLibrary(_hModule);
                 return;
             }
+            _nativeGetPKeyData = Marshal.GetDelegateForFunctionPointer<DelegateGetPKeyData>(getPKeyDataAddr);
+            Console.WriteLine($"✅ 获取GetPKeyData地址成功：0x{getPKeyDataAddr.ToString("X8")}");
+            string productKey = TEST_PRODUCT_KEY;
 
+            StringBuilder pidSb = new StringBuilder(512);
+            string iid = null, description = null, channel = null, subType = null;
+
+            if (!File.Exists(configPath))
+            {
+                Console.WriteLine($"❌ 配置文件不存在：{configPath}");
+                Console.WriteLine($"提示：请将pkconfig_winNext.xrm-ms放在程序运行目录下");
+                return;
+            }
+
+            try
+            {
+                int retCode = _nativeGetPKeyData(
+                    productKey, configPath, null, null, IntPtr.Zero, IntPtr.Zero,
+                    out iid, out description, out channel, out subType, pidSb
+                );
+
+                if (retCode == 0)
+                {
+                    Console.WriteLine("✅ GetPKeyData调用成功，结构化数据如下：");
+                    Console.WriteLine($"产品密钥：{productKey}");
+                    Console.WriteLine($"IID唯一标识：{iid ?? "空"}");
+                    Console.WriteLine($"密钥描述：{description ?? "空"}");
+                    Console.WriteLine($"密钥通道：{channel ?? "空"}");
+                    Console.WriteLine($"密钥子类型：{subType ?? "空"}");
+                    Console.WriteLine($"PID标识码：{pidSb.ToString() ?? "空"}");
+                }
+                else
+                {
+                    PrintError($"GetPKeyData调用失败，返回码", retCode);
+                    PrintError($"系统底层错误码", Marshal.GetLastWin32Error());
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ 调用GetPKeyData异常：{ex.Message}");
+            }
+            finally
+            {
+                FreeNativeOutString(iid);
+                FreeNativeOutString(description);
+                FreeNativeOutString(channel);
+                FreeNativeOutString(subType);
+            }
             Console.WriteLine("===============================================================");
         }
         #endregion
