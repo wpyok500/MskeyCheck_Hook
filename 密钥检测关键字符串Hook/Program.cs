@@ -12,11 +12,9 @@ namespace 密钥检测关键字符串Hook
 {
     class Program
     {
-        // 核心配置（保持你的偏移0xA981，统一注释说明）
+        // 核心配置（保持你的偏移0x16AB0，统一注释说明）
         private const string TARGET_DLL = "ProductKeyUtilities.dll";          // 目标系统DLL
-        private const int GET_PKEYDATA_HOOK_OFFSET = 0xA981;                  // Hook偏移：GetPKeyData+0xA981（对应sub_7BBCA981）
-        private const int VALID_HOOK_CALL_COUNT = 2;                          // 有效拦截次数：第三次调用
-        private const string TARGET_MATCH_STR = "msft2009";                   // 目标匹配字符串
+        private const int GET_PKEYDATA_HOOK_OFFSET = 0x16AB0;                  // Hook偏移：0x16AB0     
         private const string TEST_PRODUCT_KEY = "VK7JG-NPHTM-C97JM-9MPGT-3V66T"; // 测试产品密钥 VK7JG-NPHTM-C97JM-9MPGT-3V66T
         private const string configPath = "pkconfig_winNext.xrm-ms";
 
@@ -78,15 +76,15 @@ namespace 密钥检测关键字符串Hook
                 // 步骤3：【核心修复】计算正确Hook地址（GetPKeyData函数地址 + 偏移，而非模块基址+偏移）
                 IntPtr hookTargetAddr = IntPtr.Add(_hModule, GET_PKEYDATA_HOOK_OFFSET);
                 Console.WriteLine($"✅ 计算Hook目标地址成功sub_7BBCA981 [GetPKeyData+{GET_PKEYDATA_HOOK_OFFSET:X4}]：0x{hookTargetAddr.ToString("X8")}");
-
+                Console.ReadKey();
                 // 步骤4：创建并启用Hook（Reloaded.Hooks 4.3.3标准写法，无修改）
-                var hookFactory = new ReloadedHooks();
-                _hookTargetFunc = hookFactory.CreateHook<HookTargetFuncDelegate>(
-                    HookedGetPKeyData_981,
-                    hookTargetAddr.ToInt64()
-                );
-                _hookTargetFunc.Activate();
-                Console.WriteLine($"✅ sub_7BBCA981 Hook启用成功，等待调用触发...\n");
+                //var hookFactory = new ReloadedHooks();
+                //_hookTargetFunc = hookFactory.CreateHook<HookTargetFuncDelegate>(
+                //    HookedGetPKeyData_981,
+                //    hookTargetAddr.ToInt64()
+                //);
+                //_hookTargetFunc.Activate();
+                //Console.WriteLine($"✅ sub_7BBCA981 Hook启用成功，等待调用触发...\n");
 
                 // 步骤5：调用GetPKeyData原生函数，触发Hook拦截（无修改）
                 CallGetPKeyData();
