@@ -67,11 +67,11 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ConfigData2005.cs" />
     <Compile Include="ConstDef.cs" />
-    <Compile Include="FastCall.cs" />
-    <Compile Include="Hook.cs" />
-    <Compile Include="Hook_API.cs" />
-    <Compile Include="HookAPI.cs" />
+    <Compile Include="DecodeFunc.cs" />
+    <Compile Include="DLLFromMemory.cs" />
+    <Compile Include="PeArray.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="suanfah.cs" />

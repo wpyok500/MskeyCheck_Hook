@@ -12,7 +12,7 @@ namespace PidKeyPlugIn
     public class DecodeKeyData
     {
         // Token: 0x06000084 RID: 132 RVA: 0x00059960 File Offset: 0x00057B60
-        public static string GetKeyData(string productKey, int status = 0)
+        public static string GetKeyData2009(string productKey, int status = 0)
         {
             bool flag = true;
             byte[] array2 = DecodeKeyData.GetKeyArray(productKey, ref flag);
@@ -25,8 +25,21 @@ namespace PidKeyPlugIn
             string text6 = Convert.ToBase64String(array2);
             return text6;
         }
+        public static string GetKeyData2005(string productKey, int status = 0)
+        {
+            bool flag = true;
+            byte[] array2 = DecodeKeyData.GetKeyArray(productKey, ref flag);
+            array2 = DecodeKeyData.GetEncryptArray(array2, flag);
+            int len = 48 + 8 + array2.Length;
+            byte[] array7 = new byte[len];
 
-       
+            array7[48] = 1;
+            Array.Copy(array2, 0, array7, 56, array2.Length);
+            
+            string text6 = DecodeKeyData.DecodeKey2005_GetText(array7);
+            return text6;
+        }
+
         // Token: 0x06000088 RID: 136 RVA: 0x0005A8A4 File Offset: 0x00058AA4
         private static byte[] GetKeyArray(string productKey, ref bool flag)
         {
@@ -443,5 +456,45 @@ namespace PidKeyPlugIn
             2310601993U, 2373574846U, 2151335527U, 2231098320U, 2596047829U, 2659030626U, 2470359227U, 2550115596U, 2947551409U, 2876312838U,
             2788305887U, 2733848168U, 3165939309U, 3094707162U, 3040238851U, 2985771188U
         };
+
+
+        //===================2005=========================
+        public static string DecodeKey2005_GetText(byte[] bEncryptArray)
+        {
+            byte[] encryptKeyArray = new byte[16];
+            Buffer.BlockCopy(bEncryptArray, 56, encryptKeyArray, 0, 16);
+
+            foreach (var entry in DecodeFunc.PublicDict)
+            {
+                byte[] ifTrue = new byte[4];
+                byte[] buffer = new byte[15];
+                int[] retValue = new int[5];
+
+                int verify = DecodeFunc.VertifyKeysBytes(
+                    entry.Value.Item1,
+                    entry.Value.Item2,
+                    encryptKeyArray,
+                    ifTrue,
+                    buffer,
+                    retValue);
+
+                if (verify == 1 && ifTrue[0] == 1)
+                {
+                    retValue[4] = 1;
+
+                    byte[] result8 = new byte[8];
+                    if (DecodeFunc.CaclByte(entry.Value.Item1, buffer, result8, retValue) != 1)
+                        return null;
+
+                    byte[] base64Buffer = new byte[12];
+                    Buffer.BlockCopy(result8, 0, base64Buffer, 0, 8);
+
+                    return Convert.ToBase64String(base64Buffer);
+                }
+            }
+
+            return null;
+        }
+
     }
 }
