@@ -179,7 +179,7 @@ namespace 密钥检测关键字符串Hook
             string s = Marshal.PtrToStringUni(esi);
 
             // 3️⃣ 逻辑尽量轻
-            if (s != null && s.StartsWith("msft2009:"))
+            if (s != null && (s.StartsWith("msft2009:") || s.StartsWith("msft2005:")))
             {
                 Console.WriteLine($"[Esi] {s}");
             }
