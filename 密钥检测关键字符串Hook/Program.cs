@@ -20,7 +20,7 @@ namespace 密钥检测关键字符串Hook
         private const string TEST_PRODUCT_KEY = "VK7JG-NPHTM-C97JM-9MPGT-3V66T"; // 测试产品密钥 VK7JG-NPHTM-C97JM-9MPGT-3V66T
         private const string configPath = "pkconfig_winNext.xrm-ms";
 
-        #region 1. GetPKeyData原生函数委托（StdCall，无修改）
+        #region 定义委托
         [UnmanagedFunctionPointer(CallingConvention.StdCall, CharSet = CharSet.Unicode)]
         private delegate int DelegateGetPKeyData(
             string ProductKey,
@@ -35,14 +35,14 @@ namespace 密钥检测关键字符串Hook
             out string subType,
             StringBuilder PID
         );
-        #endregion
 
-        #region 2. 
-        [UnmanagedFunctionPointer(CallingConvention.Winapi)]
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         delegate void OnESIDelegate(IntPtr esi);
         #endregion
 
         #region 全局变量（Hook实例/委托/模块句柄/调用计数器，无修改）
+        private static DelegateGetPKeyData _nativeGetPKeyData;
+
         private static IAsmHook _asmHook;
         private static ReloadedHooks _hooksInstance;
         private static IntPtr _callbackPtr;
@@ -66,21 +66,15 @@ namespace 密钥检测关键字符串Hook
                 }
                 Console.WriteLine($"✅ 加载{TARGET_DLL}成功，模块基址：0x{_hModule.ToString("X8")}");
 
-                // 步骤2：获取GetPKeyData导出函数地址，封送为C#委托
-                
-                //
                 _onEsiPtr = Marshal.GetFunctionPointerForDelegate<OnESIDelegate>(_onEsi);
-                Console.WriteLine($"✅ 获取GetPKeyData地址成功：0x{getPKeyDataAddr.ToString("X8")}");
+                Console.WriteLine($"✅ 获取GetPKeyData地址成功：0x{_onEsiPtr.ToString("X8")}");
 
-                // 步骤3：【核心修复】计算正确Hook地址（GetPKeyData函数地址 + 偏移，而非模块基址+偏移）
                 IntPtr hookTargetAddr = IntPtr.Add(_hModule, HOOK_OFFSET);
                 Console.WriteLine($"✅ 计算Hook目标地址成功 ：0x{hookTargetAddr.ToString("X8")}");
-                Console.ReadKey();
-                //步骤4：创建并启用Hook
+
                 InstallAsmHook(hookTargetAddr.ToInt64());
                 Console.WriteLine($"✅ Hook启用成功，等待调用触发...\n");
 
-                // 步骤5：调用GetPKeyData原生函数，触发Hook拦截（无修改）
                 CallGetPKeyData();
 
                 Console.WriteLine($"\n✅ Hook已禁用，恢复原生sub_7BBCA981执行逻辑");
@@ -101,48 +95,78 @@ namespace 密钥检测关键字符串Hook
         }
         private static void InstallAsmHook(long hookAddress)
         {
-            /*
-             * 栈布局说明：
-             * - push 8 个非易失寄存器 = 64 字节
-             * - sub rsp, 20h         = shadow space
-             *
-             * 原始 RSP = 当前 rsp + 20h + 8*8
-             */
-            // 计算需要保护的所有易失寄存器
-            // 注意：x64 下除了 RCX, RDX, R8, R9, 还包括 RAX, R10, R11 和 XMM0-XMM5
+            // asm 写法一
+            // Reloaded.Hooks 在 x86 下会自动处理 5 字节跳转
+            // 我们只需要保护现场 -> 传参调用 -> 恢复现场
             string[] asm =
             {
-                // --- 1. 环境保护 ---
-                "pushad",                // 保存所有通用寄存器 (EAX, ECX, EDX, EBX, ESP, EBP, ESI, EDI)
-                "pushfd",                // 保存标志寄存器 (EFLAGS)
+                "use32",                 // 明确告诉汇编器这是 32 位代码
 
-                // --- 2. 传递参数并调用 C# ---
-                // 此时 ESI 指向 Key 字符串：L"msft2009:..."
-                "push esi",              // 将 ESI 压栈作为第一个参数
+                // --- 1. 环境保护 ---
+                "pushad",                // 保存 EAX, ECX, EDX, EBX, ESP, EBP, ESI, EDI
+                "pushfd",                // 保存标志位
+
+                // --- 2. 传参并调用 C# ---
+                "push esi",              // 此时 ESI 是已经赋值好的 Key 字符串地址
                 $"mov eax, {_onEsiPtr.ToInt32()}",
-                "call eax",              // 调用托管代码
-                "add esp, 4",            // 平衡栈 (cdecl 约定)
+                "call eax",
+                "add esp, 4",            // 平衡 push esi 产生的 4 字节栈空间
 
                 // --- 3. 环境恢复 ---
-                "popfd",                 // 还原标志位
-                "popad",                 // 还原寄存器
+                "popfd",
+                "popad"
 
-                // --- 4. 修复指令（必须补足被覆盖的字节） ---
-                // 7BD16AB0 处指令: 83 65 E0 00 (4字节)
-                // 7BD16AB4 处指令: 89 42 08    (3字节)
-                // 如果 Hook 占用 5 字节，则这两条指令都需要在此时完整补回
-                "and dword ptr [ebp-0x20], 0",
-                "mov [edx+0x08], eax"
+                // 注意：这里不需要手动写 and dword ptr [ebp-20], 0
+                // 因为我们将 Behaviour 设置为 ExecuteFirst，Reloaded 会自动在我们的代码后执行原指令
             };
+
+            // asm 写法二
+            //string[] asm =
+            //{
+            //    "use32",
+
+            //    // 1. 保护寄存器 (注意顺序：先 push 的后 pop)
+            //    "push eax",
+            //    "push ecx",
+            //    "push edx",
+            //    "push ebx",
+            //    "push ebp",
+            //    "push esi",
+            //    "push edi",
+            //    "pushfd",               // 额外保护一下标志位，防止 C# 逻辑干扰跳转指令
+
+            //    // 2. 执行原始指令 (手动补偿)
+            //    "add dword [ebp - 20h], 0",  //"and dword ptr [ebp - 20h], 0", 不能有ptr会报fasm错误 ,更推荐"mov dword [ebp - 20h], 0"
+
+            //    // 3. 调用 C# 函数 (栈传参模式)
+            //    "push esi",             // 把 esi 压入栈，作为 C# 函数的第一个参数
+            //    $"mov eax, {_onEsiPtr.ToInt32():X8}h", // 32位环境用 ToInt32,需要加前缀0x 否则报错
+            //    "call eax",
+            //    "add esp, 4",           // 重要：如果是 Cdecl 调用约定，必须手动平栈
+
+            //    // 4. 恢复现场
+            //    "popfd",
+            //    "pop edi",
+            //    "pop esi",
+            //    "pop ebp",
+            //    "pop ebx",
+            //    "pop edx",
+            //    "pop ecx",
+            //    "pop eax"
+
+            //    // 注意：不要手动写 jmp 0x7B106AB4。
+            //    // Reloaded.Hooks 会在 asm 数组执行完后，自动帮你跳回正确的地址。
+            //};
+
             _hooksInstance = new ReloadedHooks();
 
             _asmHook = _hooksInstance.CreateAsmHook(
                 asm,
                 hookAddress,
-                AsmHookBehaviour.ExecuteFirst
+                AsmHookBehaviour.ExecuteFirst // 先执行我们的 push/call，再执行原程序的 and [ebp-20], 0
             ).Activate();
 
-            Console.WriteLine("[+] AsmHook 激活成功");
+            Console.WriteLine($"[+] Hook 成功激活于: 0x{hookAddress:X}");
         }
         #region Hook拦截函数
         private static void OnESI(IntPtr esi)
@@ -157,7 +181,7 @@ namespace 密钥检测关键字符串Hook
             // 3️⃣ 逻辑尽量轻
             if (s != null && s.StartsWith("msft2009:"))
             {
-                Console.WriteLine($"[RDI] {s}");
+                Console.WriteLine($"[Esi] {s}");
             }
         }
 
@@ -207,8 +231,8 @@ namespace 密钥检测关键字符串Hook
                 }
                 else
                 {
-                    PrintError($"GetPKeyData调用失败，返回码", retCode);
-                    PrintError($"系统底层错误码", Marshal.GetLastWin32Error());
+                    Console.WriteLine($"GetPKeyData调用失败，返回码{retCode}");
+                    Console.WriteLine($"系统底层错误码{Marshal.GetLastWin32Error()}");
                 }
             }
             catch (Exception ex)
@@ -217,10 +241,7 @@ namespace 密钥检测关键字符串Hook
             }
             finally
             {
-                FreeNativeOutString(iid);
-                FreeNativeOutString(description);
-                FreeNativeOutString(channel);
-                FreeNativeOutString(subType);
+                FreeLibrary(getPKeyDataAddr);
             }
             Console.WriteLine("===============================================================");
         }
