@@ -36,7 +36,7 @@ namespace 密钥检测关键字符串Hook
             StringBuilder PID
         );
 
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)] //若是64位dll,用winapi
         delegate void OnESIDelegate(IntPtr esi);
         #endregion
 
