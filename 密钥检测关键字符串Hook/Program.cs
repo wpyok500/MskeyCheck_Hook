@@ -49,10 +49,13 @@ namespace 密钥检测关键字符串Hook
         private static string ProductKeys = "6DDRB-NYW97-7B67B-VPJJP-J4473";
         static void Main(string[] args)
         {
+            Console.WriteLine("🔍 纯算法生成激活Token方法");
             //=====纯算法生成激活Token方法=====
-            ActConfigKeyGenerate(); 
+            ActConfigKeyGenerate();
             //==========================================================
-            
+            //Console.WriteLine("按任意键继续，使用hook获取token");
+            //Console.ReadLine();
+
             string pkeyconfigxml = System.Environment.CurrentDirectory + "\\pkconfig_winNext.xrm-ms";
             IntPtr intPtr = Marshal.AllocHGlobal(100);
             RtlZeroMemory(intPtr, 50);
@@ -99,6 +102,9 @@ namespace 密钥检测关键字符串Hook
             //ProductKeyUtilities.dll偏移地址55041 和 50252 都是； pidgenx.dll的偏移x86的偏移是5088E， x64的是1E938
             int num = delegateForFunctionPointer(ProductKeys, pkeyconfigxml, "55041", (IntPtr)0, intPtr, intPtr2, intPtr3);
             Console.WriteLine(num.ToString());
+            Console.WriteLine(Marshal.PtrToStringUni(intPtr));
+            GetData(intPtr2);
+            Console.WriteLine(Marshal.PtrToStringAuto(intPtr3));
             HookAPI.Unistall();
 
             //HookAPI.Unistall();
@@ -183,9 +189,52 @@ namespace 密钥检测关键字符串Hook
             }
             finally
             {
-                Console.WriteLine("\n按任意键退出...");
+                //Console.WriteLine("\n按任意键退出...");
+                Console.WriteLine("按任意键继续，使用hook获取token");
                 Console.ReadKey();
             }
+        }
+
+        public static void GetData(IntPtr pDigitalProductID)
+        {
+            if (pDigitalProductID == IntPtr.Zero) return;
+
+            // 1. 提取 Product ID (偏移 0x08, 长度 28)
+            // 覆盖 "00378-60" + "425-63872-AA693"
+            string fullId = ReadStringByOffset(pDigitalProductID, 0x08, 28);
+
+            // 2. 提取 Edition ID 主体 (偏移 0x24, 长度 12)
+            // 对应 "[RS1]res-v37"
+            string editionBase = ReadStringByOffset(pDigitalProductID, 0x24, 12);
+
+            // 3. 提取尾缀 (偏移 0x30, 长度 2)
+            // 对应 "86"
+            string suffix = ReadStringByOffset(pDigitalProductID, 0x30, 2);
+
+            // 输出结果
+            Console.WriteLine($"Full ID: {fullId}");
+            Console.WriteLine($"Edition: {editionBase}{suffix}");
+        }
+
+        /// <summary>
+        /// 从内存偏移处读取指定长度并清洗非打印字符
+        /// </summary>
+        private static string ReadStringByOffset(IntPtr basePtr, int offset, int length)
+        {
+            byte[] buffer = new byte[length];
+            // 从基址 + 偏移量 处拷贝内存
+            Marshal.Copy(IntPtr.Add(basePtr, offset), buffer, 0, length);
+
+            // 清洗数据：只保留可见 ASCII 字符 (32-126)，跳过 0x00 等控制符
+            StringBuilder sb = new StringBuilder();
+            foreach (byte b in buffer)
+            {
+                if (b >= 32 && b <= 126)
+                {
+                    sb.Append((char)b);
+                }
+            }
+            return sb.ToString();
         }
 
     }
@@ -200,4 +249,5 @@ namespace 密钥检测关键字符串Hook
         [MarshalAs(UnmanagedType.LPWStr)]
         public string ActConfigKey;
     }
+
 }
