@@ -21,27 +21,21 @@ namespace 密钥检测关键字符串Hook
         private const string configPath = "pkconfig_winNext.xrm-ms";
 
         #region 定义委托
+        [DllImport("kernel32.dll")]
+        internal static extern bool RtlZeroMemory(IntPtr destination, int length);
+
         [UnmanagedFunctionPointer(CallingConvention.StdCall, CharSet = CharSet.Unicode)]
-        private delegate int DelegateGetPKeyData(
-            string ProductKey,
-            string PkeyConfigPath,
-            string MPCID,
-            string pwszPKeyAlgorithm,
-            IntPtr OemId,
-            IntPtr OtherId,
-            out string IID,
-            out string Description,
-            out string channel,
-            out string subType,
-            StringBuilder PID
-        );
+        private delegate int DelegatePidGenX(string ProductKey, string PkeyPath, string MSPID, IntPtr oemId, IntPtr ProductID, IntPtr DigitalProductID, IntPtr DigitalProductID4);
+        [DllImport("pidgenx.dll", EntryPoint = "PidGenX", CharSet = CharSet.Auto)]
+        private static extern int PidGenX(string ProductKey, string PkeyPath, string MSPID, string oemId, IntPtr ProductID, IntPtr DigitalProductID, IntPtr DigitalProductID4);
+
 
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)] //若是64位dll,用winapi
         delegate void OnESIDelegate(IntPtr esi);
         #endregion
 
         #region 全局变量（Hook实例/委托/模块句柄/调用计数器，无修改）
-        private static DelegateGetPKeyData _nativeGetPKeyData;
+        private static DelegatePidGenX _nativePidGenX;
 
         private static IAsmHook _asmHook;
         private static ReloadedHooks _hooksInstance;
@@ -67,7 +61,7 @@ namespace 密钥检测关键字符串Hook
                 Console.WriteLine($"✅ 加载{TARGET_DLL}成功，模块基址：0x{_hModule.ToString("X8")}");
 
                 _onEsiPtr = Marshal.GetFunctionPointerForDelegate<OnESIDelegate>(_onEsi);
-                Console.WriteLine($"✅ 获取GetPKeyData地址成功：0x{_onEsiPtr.ToString("X8")}");
+                Console.WriteLine($"✅ 获取GetPidGenX地址成功：0x{_onEsiPtr.ToString("X8")}");
 
                 IntPtr hookTargetAddr = IntPtr.Add(_hModule, HOOK_OFFSET);
                 Console.WriteLine($"✅ 计算Hook目标地址成功 ：0x{hookTargetAddr.ToString("X8")}");
@@ -75,7 +69,7 @@ namespace 密钥检测关键字符串Hook
                 InstallAsmHook(hookTargetAddr.ToInt64());
                 Console.WriteLine($"✅ Hook启用成功，等待调用触发...\n");
 
-                CallGetPKeyData();
+                CallPidGenX();
 
                 Console.WriteLine($"\n✅ Hook已禁用，恢复原生sub_7BBCA981执行逻辑");
             }
@@ -187,19 +181,19 @@ namespace 密钥检测关键字符串Hook
 
         #endregion
 
-        #region GetPKeyData调用逻辑（无修改，已修复PID=null问题）
-        private static void CallGetPKeyData()
+        #region PidGenX调用逻辑（无修改，已修复PID=null问题）
+        private static void CallPidGenX()
         {
-            Console.WriteLine("==================== 开始调用GetPKeyData ====================");
-            IntPtr getPKeyDataAddr = GetProcAddress(_hModule, "GetPKeyData");
-            if (getPKeyDataAddr == IntPtr.Zero)
+            Console.WriteLine("==================== 开始调用PidGenX ====================");
+            IntPtr getPidGenXAddr = GetProcAddress(_hModule, "PidGenX");
+            if (getPidGenXAddr == IntPtr.Zero)
             {
-                Console.WriteLine($"获取GetPKeyData地址失败");
+                Console.WriteLine($"获取GetPidGenX地址失败");
                 FreeLibrary(_hModule);
                 return;
             }
-            _nativeGetPKeyData = Marshal.GetDelegateForFunctionPointer<DelegateGetPKeyData>(getPKeyDataAddr);
-            Console.WriteLine($"✅ 获取GetPKeyData地址成功：0x{getPKeyDataAddr.ToString("X8")}");
+            _nativePidGenX = Marshal.GetDelegateForFunctionPointer<DelegatePidGenX>(getPidGenXAddr);
+            Console.WriteLine($"✅ 获取GetPidGenX地址成功：0x{getPidGenXAddr.ToString("X8")}");
             string productKey = TEST_PRODUCT_KEY;
 
             StringBuilder pidSb = new StringBuilder(512);
@@ -214,38 +208,121 @@ namespace 密钥检测关键字符串Hook
 
             try
             {
-                int retCode = _nativeGetPKeyData(
-                    productKey, configPath, null, null, IntPtr.Zero, IntPtr.Zero,
-                    out iid, out description, out channel, out subType, pidSb
+                IntPtr intPtr = Marshal.AllocHGlobal(100);
+                RtlZeroMemory(intPtr, 50);
+                Marshal.WriteByte(intPtr, 0, 50);
+                IntPtr intPtr2 = Marshal.AllocHGlobal(164);
+                RtlZeroMemory(intPtr2, 164);
+                Marshal.WriteByte(intPtr2, 0, 164);
+                IntPtr intPtr3 = Marshal.AllocHGlobal(1272);
+                RtlZeroMemory(intPtr3, 1272);
+                Marshal.WriteByte(intPtr3, 0, 248);
+                Marshal.WriteByte(intPtr3, 1, 4);
+                int retCode = _nativePidGenX(
+                    productKey, configPath, "55041", (IntPtr)0, intPtr, intPtr2, intPtr3
                 );
 
                 if (retCode == 0)
                 {
-                    Console.WriteLine("✅ GetPKeyData调用成功，结构化数据如下：");
+                    Console.WriteLine("✅ GetPidGenX调用成功，结构化数据如下：");
                     Console.WriteLine($"产品密钥：{productKey}");
-                    Console.WriteLine($"IID唯一标识：{iid ?? "空"}");
-                    Console.WriteLine($"密钥描述：{description ?? "空"}");
-                    Console.WriteLine($"密钥通道：{channel ?? "空"}");
-                    Console.WriteLine($"密钥子类型：{subType ?? "空"}");
-                    Console.WriteLine($"PID标识码：{pidSb.ToString() ?? "空"}");
+                    GetpDigitalProductID(intPtr2);
+                    GetDigitalProductId4(intPtr3);
                 }
                 else
                 {
-                    Console.WriteLine($"GetPKeyData调用失败，返回码{retCode}");
+                    Console.WriteLine($"GetPidGenX调用失败，返回码{retCode}");
                     Console.WriteLine($"系统底层错误码{Marshal.GetLastWin32Error()}");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ 调用GetPKeyData异常：{ex.Message}");
+                Console.WriteLine($"❌ 调用GetPidGenX异常：{ex.Message}");
             }
             finally
             {
-                FreeLibrary(getPKeyDataAddr);
+                FreeLibrary(getPidGenXAddr);
             }
             Console.WriteLine("===============================================================");
         }
         #endregion
+
+        public static void GetpDigitalProductID(IntPtr pDigitalProductID)
+        {
+            if (pDigitalProductID == IntPtr.Zero) return;
+
+            // 1. 提取 Product ID (偏移 0x08, 长度 28)
+            // 覆盖 "00378-60" + "425-63872-AA693"
+            string fullId = ReadStringByOffset(pDigitalProductID, 0x08, 28);
+
+            // 2. 提取 Edition ID 主体 (偏移 0x24, 长度 12)
+            // 对应 "[RS1]res-v37"
+            string editionBase = ReadStringByOffset(pDigitalProductID, 0x24, 12);
+
+            // 3. 提取尾缀 (偏移 0x30, 长度 2)
+            // 对应 "86"
+            string suffix = ReadStringByOffset(pDigitalProductID, 0x30, 2);
+
+            // 输出结果
+            Console.WriteLine($"Full ID: {fullId}");
+            Console.WriteLine($"Edition: {editionBase}{suffix}");
+        }
+
+        /// <summary>
+        /// 从内存偏移处读取指定长度并清洗非打印字符
+        /// </summary>
+        private static string ReadStringByOffset(IntPtr basePtr, int offset, int length)
+        {
+            byte[] buffer = new byte[length];
+            // 从基址 + 偏移量 处拷贝内存
+            Marshal.Copy(IntPtr.Add(basePtr, offset), buffer, 0, length);
+
+            // 清洗数据：只保留可见 ASCII 字符 (32-126)，跳过 0x00 等控制符
+            StringBuilder sb = new StringBuilder();
+            foreach (byte b in buffer)
+            {
+                if (b >= 32 && b <= 126)
+                {
+                    sb.Append((char)b);
+                }
+            }
+            return sb.ToString();
+        }
+
+        public static void GetDigitalProductId4(IntPtr ptr)
+        {
+            if (ptr == IntPtr.Zero) return;
+
+            // 1. 提取 ANSI 字段 (使用之前的 CleanAscii 逻辑)
+            string pid = ReadAnsi(ptr, 0x08, 24 * 4);
+            string internalVer = ReadAnsi(ptr, 0x84, 19 * 4);
+
+            // 2. 提取 Unicode 字段 (使用 Marshal 直接读取宽字符)
+            // Edition Name (0x118)
+            string editionDisplayName = Marshal.PtrToStringUni(IntPtr.Add(ptr, 0x118));
+
+            // Volume Channel (0x3F8) -> 提取 "Volume:MAK"
+            string volumeChannel = Marshal.PtrToStringUni(IntPtr.Add(ptr, 0x3F8));
+
+            // Volume Type (0x478) -> 提取 "Volume"
+            string volumeType = Marshal.PtrToStringUni(IntPtr.Add(ptr, 0x478));
+
+            // 输出提取结果
+            Console.WriteLine($"PID: {pid}");
+            Console.WriteLine($"Internal Version: {internalVer}");
+            Console.WriteLine($"Edition: {editionDisplayName}");
+            Console.WriteLine($"Channel: {volumeChannel}");
+            Console.WriteLine($"Type: {volumeType}");
+        }
+        /// <summary>
+        /// 精确读取 ANSI 字符串并清洗多余的空字符
+        /// </summary>
+        private static string ReadAnsi(IntPtr ptr, int offset, int len)
+        {
+            byte[] buf = new byte[len];
+            Marshal.Copy(IntPtr.Add(ptr, offset), buf, 0, len);
+            return Encoding.ASCII.GetString(buf).Replace("\0", "").Trim();
+        }
 
         #region 辅助方法（无修改）
 
