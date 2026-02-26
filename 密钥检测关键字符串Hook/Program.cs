@@ -17,7 +17,7 @@ namespace 密钥检测关键字符串Hook
         // 核心配置（保持你的偏移0x16AB0，统一注释说明）
         private const string TARGET_DLL = "ProductKeyUtilities.dll";          // 目标系统DLL
         private const int HOOK_OFFSET = 0x16AB0;                  // Hook偏移：0x16AB0     
-        private const string TEST_PRODUCT_KEY = "VK7JG-NPHTM-C97JM-9MPGT-3V66T"; // 测试产品密钥 VK7JG-NPHTM-C97JM-9MPGT-3V66T
+        private const string TEST_PRODUCT_KEY = "VK7JG-NPHTM-C97JM-9MPGT-3V66T"; // 测试产品密钥 VK7JG-NPHTM-C97JM-9MPGT-3V66T 
         private const string configPath = "pkconfig_winNext.xrm-ms";
 
         #region 定义委托
