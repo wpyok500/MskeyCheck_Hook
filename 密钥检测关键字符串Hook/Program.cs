@@ -103,8 +103,8 @@ namespace 密钥检测关键字符串Hook
             int num = delegateForFunctionPointer(ProductKeys, pkeyconfigxml, "55041", (IntPtr)0, intPtr, intPtr2, intPtr3);
             Console.WriteLine(num.ToString());
             Console.WriteLine(Marshal.PtrToStringUni(intPtr));
-            GetData(intPtr2);
-            Console.WriteLine(Marshal.PtrToStringAuto(intPtr3));
+            GetpDigitalProductID(intPtr2);
+            GetDigitalProductId4(intPtr3);
             HookAPI.Unistall();
 
             //HookAPI.Unistall();
@@ -195,7 +195,7 @@ namespace 密钥检测关键字符串Hook
             }
         }
 
-        public static void GetData(IntPtr pDigitalProductID)
+        public static void GetpDigitalProductID(IntPtr pDigitalProductID)
         {
             if (pDigitalProductID == IntPtr.Zero) return;
 
@@ -235,6 +235,41 @@ namespace 密钥检测关键字符串Hook
                 }
             }
             return sb.ToString();
+        }
+
+        public static void GetDigitalProductId4(IntPtr ptr)
+        {
+            if (ptr == IntPtr.Zero) return;
+
+            // 1. 提取 ANSI 字段 (使用之前的 CleanAscii 逻辑)
+            string pid = ReadAnsi(ptr, 0x08, 24*4);
+            string internalVer = ReadAnsi(ptr, 0x84, 19*4);
+
+            // 2. 提取 Unicode 字段 (使用 Marshal 直接读取宽字符)
+            // Edition Name (0x118)
+            string editionDisplayName = Marshal.PtrToStringUni(IntPtr.Add(ptr, 0x118));
+
+            // Volume Channel (0x3F8) -> 提取 "Volume:MAK"
+            string volumeChannel = Marshal.PtrToStringUni(IntPtr.Add(ptr, 0x3F8));
+
+            // Volume Type (0x478) -> 提取 "Volume"
+            string volumeType = Marshal.PtrToStringUni(IntPtr.Add(ptr, 0x478));
+
+            // 输出提取结果
+            Console.WriteLine($"PID: {pid}");
+            Console.WriteLine($"Internal Version: {internalVer}");
+            Console.WriteLine($"Edition: {editionDisplayName}");
+            Console.WriteLine($"Channel: {volumeChannel}");
+            Console.WriteLine($"Type: {volumeType}");
+        }
+        /// <summary>
+        /// 精确读取 ANSI 字符串并清洗多余的空字符
+        /// </summary>
+        private static string ReadAnsi(IntPtr ptr, int offset, int len)
+        {
+            byte[] buf = new byte[len];
+            Marshal.Copy(IntPtr.Add(ptr, offset), buf, 0, len);
+            return Encoding.ASCII.GetString(buf).Replace("\0", "").Trim();
         }
 
     }
