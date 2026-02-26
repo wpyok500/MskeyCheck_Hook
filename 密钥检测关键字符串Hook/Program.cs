@@ -39,7 +39,6 @@ namespace 密钥检测关键字符串Hook
 
         private static IAsmHook _asmHook;
         private static ReloadedHooks _hooksInstance;
-        private static IntPtr _callbackPtr;
         static OnESIDelegate _onEsi = OnESI;
         static IntPtr _onEsiPtr;
 
@@ -61,7 +60,7 @@ namespace 密钥检测关键字符串Hook
                 Console.WriteLine($"✅ 加载{TARGET_DLL}成功，模块基址：0x{_hModule.ToString("X8")}");
 
                 _onEsiPtr = Marshal.GetFunctionPointerForDelegate<OnESIDelegate>(_onEsi);
-                Console.WriteLine($"✅ 获取GetPidGenX地址成功：0x{_onEsiPtr.ToString("X8")}");
+                Console.WriteLine($"✅ 获取回调函数地址成功：0x{_onEsiPtr.ToString("X8")}");
 
                 IntPtr hookTargetAddr = IntPtr.Add(_hModule, HOOK_OFFSET);
                 Console.WriteLine($"✅ 计算Hook目标地址成功 ：0x{hookTargetAddr.ToString("X8")}");
@@ -70,8 +69,8 @@ namespace 密钥检测关键字符串Hook
                 Console.WriteLine($"✅ Hook启用成功，等待调用触发...\n");
 
                 CallPidGenX();
-
-                Console.WriteLine($"\n✅ Hook已禁用，恢复原生sub_7BBCA981执行逻辑");
+                _asmHook?.Disable();
+                Console.WriteLine($"\n✅ Hook已禁用，恢复原生执行逻辑");
             }
             catch (Exception ex)
             {
@@ -79,8 +78,15 @@ namespace 密钥检测关键字符串Hook
             }
             finally
             {
+                // 释放Hook资源
+                _asmHook?.Disable();
 
-                if (_hModule != IntPtr.Zero) FreeLibrary(_hModule);
+                // 释放DLL模块
+                if (_hModule != IntPtr.Zero)
+                {
+                    FreeLibrary(_hModule);
+                    _hModule = IntPtr.Zero;
+                }
                 Console.WriteLine($"\n✅ 所有非托管资源已释放，程序执行完成");
             }
 
@@ -166,7 +172,7 @@ namespace 密钥检测关键字符串Hook
         private static void OnESI(IntPtr esi)
         {
             // 1️⃣ 永远判空
-            if (esi == IntPtr.Zero)
+            if (esi == IntPtr.Zero || IsBadReadPtr(esi, 1))
                 return;
 
             // 2️⃣ 只读，不修改
@@ -185,65 +191,81 @@ namespace 密钥检测关键字符串Hook
         private static void CallPidGenX()
         {
             Console.WriteLine("==================== 开始调用PidGenX ====================");
-            IntPtr getPidGenXAddr = GetProcAddress(_hModule, "PidGenX");
-            if (getPidGenXAddr == IntPtr.Zero)
-            {
-                Console.WriteLine($"获取GetPidGenX地址失败");
-                FreeLibrary(_hModule);
-                return;
-            }
-            _nativePidGenX = Marshal.GetDelegateForFunctionPointer<DelegatePidGenX>(getPidGenXAddr);
-            Console.WriteLine($"✅ 获取GetPidGenX地址成功：0x{getPidGenXAddr.ToString("X8")}");
-            string productKey = TEST_PRODUCT_KEY;
-
-            StringBuilder pidSb = new StringBuilder(512);
-            string iid = null, description = null, channel = null, subType = null;
-
             if (!File.Exists(configPath))
             {
                 Console.WriteLine($"❌ 配置文件不存在：{configPath}");
                 Console.WriteLine($"提示：请将pkconfig_winNext.xrm-ms放在程序运行目录下");
                 return;
             }
+            IntPtr getPidGenXAddr = GetProcAddress(_hModule, "PidGenX");
+            if (getPidGenXAddr == IntPtr.Zero) return;
+
+            _nativePidGenX = Marshal.GetDelegateForFunctionPointer<DelegatePidGenX>(getPidGenXAddr);
+
+            IntPtr pProductID = IntPtr.Zero;
+            IntPtr pDigitalProductID = IntPtr.Zero;
+            IntPtr pDigitalProductID4 = IntPtr.Zero;
 
             try
             {
-                IntPtr intPtr = Marshal.AllocHGlobal(100);
-                RtlZeroMemory(intPtr, 50);
-                Marshal.WriteByte(intPtr, 0, 50);
-                IntPtr intPtr2 = Marshal.AllocHGlobal(164);
-                RtlZeroMemory(intPtr2, 164);
-                Marshal.WriteByte(intPtr2, 0, 164);
-                IntPtr intPtr3 = Marshal.AllocHGlobal(1272);
-                RtlZeroMemory(intPtr3, 1272);
-                Marshal.WriteByte(intPtr3, 0, 248);
-                Marshal.WriteByte(intPtr3, 1, 4);
+                // 1. 分配内存
+                pProductID = Marshal.AllocHGlobal(100);
+                pDigitalProductID = Marshal.AllocHGlobal(164);
+                pDigitalProductID4 = Marshal.AllocHGlobal(1272);
+
+                // 2. 使用安全的方式清零内存 (不要用那个 RtlZeroMemory)
+                byte[] zeroBuffer = new byte[1272]; // 最大的一个
+                Marshal.Copy(zeroBuffer, 0, pProductID, 100);
+                Marshal.Copy(zeroBuffer, 0, pDigitalProductID, 164);
+                Marshal.Copy(zeroBuffer, 0, pDigitalProductID4, 1272);
+
+                // 3. 严格初始化结构体头部 (这是决定返回码的关键)
+                // 第1个参数: ProductID 结构
+                Marshal.WriteInt32(pProductID, 0, 50);
+
+                // 第2个参数: DigitalProductID 结构
+                Marshal.WriteInt32(pDigitalProductID, 0, 164);
+
+                // 第3个参数: DigitalProductID4 结构
+                // 注意：这里必须写 0x000004F8 (即1272)，且版本号要对
+                Marshal.WriteInt32(pDigitalProductID4, 0, 1272);
+                // 这里的 0x04 是版本号，通常在偏移 4 的位置 (Int32)
+                Marshal.WriteInt32(pDigitalProductID4, 4, 4);
+
+                // 4. 发起调用
                 int retCode = _nativePidGenX(
-                    productKey, configPath, "55041", (IntPtr)0, intPtr, intPtr2, intPtr3
+                    TEST_PRODUCT_KEY,
+                    configPath,
+                    "55041",
+                    IntPtr.Zero,
+                    pProductID,
+                    pDigitalProductID,
+                    pDigitalProductID4
                 );
 
                 if (retCode == 0)
                 {
-                    Console.WriteLine("✅ GetPidGenX调用成功，结构化数据如下：");
-                    Console.WriteLine($"产品密钥：{productKey}");
-                    GetpDigitalProductID(intPtr2);
-                    GetDigitalProductId4(intPtr3);
+                    Console.WriteLine("✅ GetPidGenX调用成功");
+                    GetpDigitalProductID(pDigitalProductID);
+                    GetDigitalProductId4(pDigitalProductID4);
                 }
                 else
                 {
-                    Console.WriteLine($"GetPidGenX调用失败，返回码{retCode}");
-                    Console.WriteLine($"系统底层错误码{Marshal.GetLastWin32Error()}");
+                    Console.WriteLine($"❌ 调用失败，返回码: {retCode} (0x{retCode:X8})");
+                    // 如果 retCode 是 -2147024809，说明上面 WriteInt32 的某个 Size 还是不对
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ 调用GetPidGenX异常：{ex.Message}");
+                Console.WriteLine($"❌ 异常：{ex.Message}");
             }
             finally
             {
-                FreeLibrary(getPidGenXAddr);
+                // 5. 释放非托管资源
+                if (pProductID != IntPtr.Zero) Marshal.FreeHGlobal(pProductID);
+                if (pDigitalProductID != IntPtr.Zero) Marshal.FreeHGlobal(pDigitalProductID);
+                if (pDigitalProductID4 != IntPtr.Zero) Marshal.FreeHGlobal(pDigitalProductID4);
             }
-            Console.WriteLine("===============================================================");
         }
         #endregion
 
