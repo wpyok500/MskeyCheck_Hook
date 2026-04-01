@@ -61,6 +61,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CreateXml.cs" />
+    <Compile Include="GetCoutXML.cs" />
     <Compile Include="KeyResult.cs" />
     <Compile Include="Utils.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
