@@ -182,6 +182,11 @@ namespace 密钥检测关键字符串Hook
             if (s != null && (s.StartsWith("msft2009:") || s.StartsWith("msft2005:")))
             {
                 Console.WriteLine($"[Esi] {s}");
+                CreateXml createXml = new CreateXml();
+                KeyResult result =  createXml.SendXML(TEST_PRODUCT_KEY , s);
+                Console.WriteLine($"ERROR CODE： {result.HResult}");
+                Console.WriteLine($"ERROR DESC： {result.Message}");
+
             }
         }
 

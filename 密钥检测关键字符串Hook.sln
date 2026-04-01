@@ -5,6 +5,8 @@ VisualStudioVersion = 17.13.35825.156
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "密钥检测关键字符串Hook", "密钥检测关键字符串Hook\密钥检测关键字符串Hook.csproj", "{C15C0E25-256F-483C-AFB5-398FE6E288FE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GenerateXML", "GenerateXML\GenerateXML.csproj", "{89249CE4-600B-4FE8-AD22-77DA0AEE0949}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,18 @@ Global
 		{C15C0E25-256F-483C-AFB5-398FE6E288FE}.Release|x64.Build.0 = Release|x64
 		{C15C0E25-256F-483C-AFB5-398FE6E288FE}.Release|x86.ActiveCfg = Release|x86
 		{C15C0E25-256F-483C-AFB5-398FE6E288FE}.Release|x86.Build.0 = Release|x86
+		{89249CE4-600B-4FE8-AD22-77DA0AEE0949}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{89249CE4-600B-4FE8-AD22-77DA0AEE0949}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{89249CE4-600B-4FE8-AD22-77DA0AEE0949}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{89249CE4-600B-4FE8-AD22-77DA0AEE0949}.Debug|x64.Build.0 = Debug|Any CPU
+		{89249CE4-600B-4FE8-AD22-77DA0AEE0949}.Debug|x86.ActiveCfg = Debug|x86
+		{89249CE4-600B-4FE8-AD22-77DA0AEE0949}.Debug|x86.Build.0 = Debug|x86
+		{89249CE4-600B-4FE8-AD22-77DA0AEE0949}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{89249CE4-600B-4FE8-AD22-77DA0AEE0949}.Release|Any CPU.Build.0 = Release|Any CPU
+		{89249CE4-600B-4FE8-AD22-77DA0AEE0949}.Release|x64.ActiveCfg = Release|Any CPU
+		{89249CE4-600B-4FE8-AD22-77DA0AEE0949}.Release|x64.Build.0 = Release|Any CPU
+		{89249CE4-600B-4FE8-AD22-77DA0AEE0949}.Release|x86.ActiveCfg = Release|Any CPU
+		{89249CE4-600B-4FE8-AD22-77DA0AEE0949}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
