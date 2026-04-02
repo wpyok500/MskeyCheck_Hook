@@ -3,6 +3,8 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
+using System.Xml.Linq;
+using GenerateXML;
 using Reloaded.Hooks;
 using Reloaded.Hooks.Definitions;
 using Reloaded.Hooks.Definitions.Enums;
@@ -293,6 +295,8 @@ namespace 密钥检测关键字符串Hook
             // 输出结果
             Console.WriteLine($"Full ID: {fullId}");
             Console.WriteLine($"Edition: {editionBase}{suffix}");
+
+            
         }
 
         /// <summary>
@@ -336,10 +340,24 @@ namespace 密钥检测关键字符串Hook
 
             // 输出提取结果
             Console.WriteLine($"PID: {pid}");
-            Console.WriteLine($"Internal Version: {internalVer}");
+            Console.WriteLine($"Internal Version(aid): {internalVer}");
             Console.WriteLine($"Edition: {editionDisplayName}");
             Console.WriteLine($"Channel: {volumeChannel}");
             Console.WriteLine($"Type: {volumeType}");
+
+            //查询密钥版本信息
+
+            // 1. 一行代码：解码 + 加载全部数据
+            var fullConfig = PKeyConfigLoader.LoadFullConfig(configPath);
+
+            // 2. 查询产品描述（按 aid + editionId）
+            Configuration desc = PKeyConfigLoader.GetProductDescription(fullConfig, internalVer, editionDisplayName);
+
+            // 3. 按 GroupId 查询
+            var groupItems = PKeyConfigLoader.GetByGroupId(fullConfig, 5031);
+            Console.WriteLine($"Description: {desc.ProductDescription}");
+            Console.WriteLine($"Count: {GetCoutXML.GetCount(pid)}");
+
         }
         /// <summary>
         /// 精确读取 ANSI 字符串并清洗多余的空字符
