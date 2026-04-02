@@ -1,16 +1,13 @@
-﻿using System;
-using System.IO;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading;
-using System.Xml.Linq;
-using GenerateXML;
+﻿using GenerateXML;
 using Reloaded.Hooks;
 using Reloaded.Hooks.Definitions;
 using Reloaded.Hooks.Definitions.Enums;
+using System;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Text;
 
 // 必须导入：FunctionAttribute/Registers 所在命名空间（修复特性缺失的核心）
-using Reloaded.Hooks.Definitions.X86;
 
 namespace 密钥检测关键字符串Hook
 {
