@@ -131,6 +131,9 @@
     <Compile Include="Hook.cs" />
     <Compile Include="Hook_API.cs" />
     <Compile Include="HookAPI.cs" />
+    <Compile Include="KeyHookResult.cs" />
+    <Compile Include="ProductKeyHookService.cs" />
+    <Compile Include="ProductKeyHookServiceAsync.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
