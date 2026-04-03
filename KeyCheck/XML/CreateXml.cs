@@ -7,7 +7,9 @@ using System.Xml.Linq;
 
 namespace GenerateXML
 {
-
+    /// <summary>
+    /// CreateXml 类（需要new 创建对象调用）负责构建并发送 XML 请求到 Microsoft 激活服务，并解析响应以获取产品密钥验证结果。
+    /// </summary>
     public class CreateXml : IDisposable
     {
         private readonly WebClient _webClient;

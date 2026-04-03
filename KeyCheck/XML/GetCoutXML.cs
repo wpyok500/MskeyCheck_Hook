@@ -7,6 +7,9 @@ using System.Xml;
 
 namespace GenerateXML
 {
+    /// <summary>
+    /// 静态类，提供获取微软密钥剩余激活次数的功能
+    /// </summary>
     public class GetCoutXML
     {
         private static readonly byte[] BPrivateKey = new byte[]

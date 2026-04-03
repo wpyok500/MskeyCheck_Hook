@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Threading.Tasks;
 using 密钥检测关键字符串Hook;
+using GenerateXML;
+using KeyCheck;
 
 class Program
 {
@@ -11,12 +13,14 @@ class Program
         //    "R98TR-69NMX-DKJFP-FXJC9-4JWCX"
         //);
 
-        var service = new ProductKeyHookServiceAsync(
-            "pkconfig_winNext.xrm-ms",
-            "VK7JG-NPHTM-C97JM-9MPGT-3V66T"
-        );
+        //var service = new ProductKeyHookServiceAsync(
+        //    "pkconfig_winNext.xrm-ms",
+        //    "VK7JG-NPHTM-C97JM-9MPGT-3V66T"
+        //);
 
-        KeyHookResult result = await service.RunAsync();
+        //KeyHookResult result = await service.RunAsync();
+
+        KeyHookResult result =  RunMain.RunC("VK7JG-NPHTM-C97JM-9MPGT-3V66T", "pkconfig_winNext.xrm-ms");
 
         // ==============================================
         // 这里是调用者完全控制展示，所有信息都齐全
