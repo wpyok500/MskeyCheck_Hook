@@ -218,6 +218,7 @@ namespace GenerateXML
                             xmlns:r=""urn:mpeg:mpeg21:2003:01-REL-R-NS""&gt;&lt;tm:infoTables
                             xmlns:tm=""http://www.microsoft.com/DRM/XrML2/TM/v2""&gt;&lt;tm:infoList tag=""#global""&gt;&lt;tm:infoStr name=""licenseType""&gt;msft:sl/PL/GENERIC/PRIVATE&lt;/tm:infoStr&gt;&lt;tm:infoStr name=""licenseVersion""&gt;2.0&lt;/tm:infoStr&gt;&lt;tm:infoStr name=""licensorUrl""&gt;https://licensing.microsoft.com&lt;/tm:infoStr&gt;&lt;tm:infoStr name=""licenseCategory""&gt;msft:sl/PL/GENERIC/PRIVATE&lt;/tm:infoStr&gt;&lt;tm:infoStr name=""publicCertificateId""&gt;{7c6134e6-409c-47ed-a9b5-514c983557a0}&lt;/tm:infoStr&gt;&lt;tm:infoStr name=""clientIssuanceCertificateId""&gt;{CE939C0E-53F7-4011-A286-78B6975FA5F0}&lt;/tm:infoStr&gt;&lt;tm:infoStr name=""hwid:ootGrace""&gt;3&lt;/tm:infoStr&gt;&lt;tm:infoStr name=""migratable""&gt;true&lt;/tm:infoStr&gt;&lt;/tm:infoList&gt;&lt;/tm:infoTables&gt;&lt;/r:otherInfo&gt;&lt;/r:license&gt;&lt;/rg:licenseGroup&gt;
                         ";
+        string Office2021PublishLicense = @"";
         // SOAP模板
         private const string AtoReqTemplate = @"<?xml version=""1.0"" encoding=""utf-8""?>
             <soap:Envelope
