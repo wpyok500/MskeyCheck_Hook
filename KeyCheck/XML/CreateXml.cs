@@ -2,6 +2,8 @@
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Xml.Linq;
 
@@ -12,22 +14,33 @@ namespace GenerateXML
     /// </summary>
     public class CreateXml : IDisposable
     {
-        private readonly WebClient _webClient;
-        private bool _disposed = false; // 标记是否已释放
+        private readonly HttpClient _httpClient;
+        private bool _disposed = false;
+
         public CreateXml()
         {
-            _webClient = new WebClient();
-
-            // .NET 4.8 配置WebClient（忽略SSL验证）
-            _webClient = new WebClient();
-            _webClient.Headers.Add(HttpRequestHeader.Accept, "text/*");
-            _webClient.Headers.Add(HttpRequestHeader.UserAgent, "SLSSoapClient");
-            _webClient.Encoding = Encoding.UTF8;
-
-            // 忽略SSL证书验证（核心：.NET 4.8 实现）
+            // .NET4.8 SSL/TLS 全局配置（保留原有忽略证书）
             ServicePointManager.ServerCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) => true;
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls;
+
+            var handler = new HttpClientHandler
+            {
+                AllowAutoRedirect = true,
+                UseCookies = false
+            };
+
+            _httpClient = new HttpClient(handler);
+            _httpClient.DefaultRequestHeaders.Accept.Clear();
+            _httpClient.DefaultRequestHeaders.Accept.Add(MediaTypeWithQualityHeaderValue.Parse("text/*"));
+            _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("SLSSoapClient");
         }
+        /// <summary>
+        /// 获取产品密钥验证结果的核心方法。它构建一个符合 Microsoft 激活服务要求的 XML 请求，发送到指定的 SOAP 端点，并解析响应以提取 HRESULT 和 Message 信息。
+        /// </summary>
+        /// <param name="pkey"></param>
+        /// <param name="actConfigId"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
         public KeyResult SendXML(string pkey, string actConfigId)
         {
             try
@@ -36,18 +49,19 @@ namespace GenerateXML
                 var timestamp = Utils.FormatTimestamp(now);
                 var secureStoreId = Guid.NewGuid().ToString();
                 var binding = Utils.GenerateBinding();
-                var ProductKeyType = string.IsNullOrEmpty(actConfigId) ? "msft:rm/algorithm/pkey/2009" : actConfigId.Contains("2009") ? "msft:rm/algorithm/pkey/2009" : "msft:rm/algorithm/pkey/2005";
+                var ProductKeyType = string.IsNullOrEmpty(actConfigId)
+                    ? "msft:rm/algorithm/pkey/2009"
+                    : actConfigId.Contains("2009")
+                        ? "msft:rm/algorithm/pkey/2009"
+                        : "msft:rm/algorithm/pkey/2005";
 
-                // 检查 PL 是否已经转义过
                 string processedPl;
                 if (Office2009PublishLicense.StartsWith("&lt;"))
                 {
-                    // 如果已经转义过，直接使用，不要再调用 XmlEscape
                     processedPl = Office2009PublishLicense;
                 }
                 else
                 {
-                    // 如果是原始 XML，则进行转义
                     processedPl = Utils.XmlEscape(Office2009PublishLicense);
                 }
 
@@ -61,39 +75,42 @@ namespace GenerateXML
                     .Replace("{secure_store_id}", secureStoreId)
                     .Replace("{ProductKeyType}", ProductKeyType);
 
-                // 发送请求
-                _webClient.Headers.Remove(HttpRequestHeader.ContentType);
-                _webClient.Headers.Remove("SOAPAction");
-                _webClient.Headers.Add(HttpRequestHeader.ContentType, "text/xml; charset=utf-8");
-                _webClient.Headers.Add("SOAPAction", "http://microsoft.com/SL/ProductActivationService/IssueToken");
+                var url = "https://activation.sls.microsoft.com/SLActivateProduct/SLActivateProduct.asmx?configextension=o14";
 
-                var url = $"https://activation.sls.microsoft.com/SLActivateProduct/SLActivateProduct.asmx?configextension=o14";
+                using (var content = new StringContent(payload, Encoding.UTF8, "text/xml"))
+                {
+                    content.Headers.ContentType = MediaTypeHeaderValue.Parse("text/xml; charset=utf-8");
+                    _httpClient.DefaultRequestHeaders.Remove("SOAPAction");
+                    _httpClient.DefaultRequestHeaders.Add("SOAPAction", "http://microsoft.com/SL/ProductActivationService/IssueToken");
 
-                string respXml;
-                try
-                {
-                    respXml = _webClient.UploadString(url, payload);
-                }
-                catch (WebException ex)
-                {
-                    // 检查是否有响应正文
-                    if (ex.Response != null)
+                    string respXml;
+                    try
                     {
-                        using (var sr = new StreamReader(ex.Response.GetResponseStream()))
-                        {
-                            respXml = sr.ReadToEnd();
-                        }
-                        // 注意：这里不再 throw，而是让 respXml 进入下面的 ParseSoapResponse
+                        // 同步POST，完全对齐原WebClient行为
+                        var response = _httpClient.PostAsync(url, content).Result;
+                        // .NET 4.8 中，即使状态码非200，也能通过response读取内容（无需抛异常）
+                        respXml = response.Content.ReadAsStringAsync().Result;
                     }
-                    else
+                    catch (AggregateException ex)
                     {
-                        // 如果连响应对象都没有（比如断网），则必须抛出
+                        var innerEx = ex.InnerException;
+                        // 处理网络异常/无响应场景
+                        if (innerEx is HttpRequestException)
+                        {
+                            // .NET 4.8 HttpRequestException 无Response属性，直接抛出网络错误
+                            throw new Exception("网络连接失败，未收到服务器响应", innerEx);
+                        }
+                        // 其他异常直接抛出
+                        throw;
+                    }
+                    catch (HttpRequestException ex)
+                    {
+                        // 直接捕获HttpRequestException，处理网络错误
                         throw new Exception("网络连接失败，未收到服务器响应", ex);
                     }
-                }
 
-                // 解析响应
-                return ParseSoapResponse(respXml);
+                    return ParseSoapResponse(respXml);
+                }
             }
             catch (Exception ex)
             {
@@ -152,28 +169,22 @@ namespace GenerateXML
             }
         }
 
-        // 实现IDisposable接口
         public void Dispose()
         {
             Dispose(true);
             GC.SuppressFinalize(this);
         }
-        /// <summary>
-        /// 释放WebClient资源
-        /// </summary>
+
         protected virtual void Dispose(bool disposing)
         {
             if (_disposed) return;
-
             if (disposing)
             {
-                // 释放托管资源（如WebClient）
-                _webClient?.Dispose();
+                _httpClient?.Dispose();
             }
-
             _disposed = true;
         }
-        // 析构函数（可选，防止未手动调用Dispose）
+
         ~CreateXml()
         {
             Dispose(false);
